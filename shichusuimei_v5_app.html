@@ -933,7 +933,7 @@ function FamilyMeishikiModal({member, memberResult, targetYear, onClose}) {
 }
 
 // ─── 年齢メモセクション（パスワード保護） ────────────────────────
-function AgeMemoSection({birthYear, bd, mainResult}) {
+function AgeMemoSection({birthYear, bd, mainResult, globalApiKey}) {
   const storageKey  = `shichusuimei_memo_${bd}`;
   const childrenKey = `shichusuimei_children_${bd}`;
 
@@ -1387,6 +1387,7 @@ function AgeMemoSection({birthYear, bd, mainResult}) {
               setEditDate={setEditDate}
               setEditYear={setEditYear}
               setEditAge={setEditAge}
+              globalApiKey={globalApiKey}
             />
           ))}
         </div>
@@ -1399,9 +1400,69 @@ function AgeMemoSection({birthYear, bd, mainResult}) {
 }
 
 
+// ─── 年間運勢カード ──────────────────────────────────────────────
+function YearFortuneCard({year, myAge, mainResult, ryunen, myDaiun, globalApiKey}) {
+  const [fortune, setFortune] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [open, setOpen] = useState(false);
+
+  const generate = async () => {
+    if(!globalApiKey||!globalApiKey.trim()) return;
+    setLoading(true); setFortune(null); setError(null);
+    try {
+      const dayStem = mainResult.pillars.day.stem;
+      const youjin = mainResult.youjin;
+      const ryunenStr = ryunen ? ryunen.stem+ryunen.branch+"("+ryunen.stemEl+"/"+ryunen.branchEl+")" : "";
+      const daiunStr = myDaiun ? myDaiun.stem+myDaiun.branch+"("+myDaiun.stemEl+"/"+myDaiun.branchEl+")" : "";
+      const prompt = mainResult.name+"様の"+year+"年（"+myAge+"歳）の運勢を鑑定してください。\n命式: 日干"+dayStem+"、"+(youjin?.bodyStr||"")+"、用神:"+(youjin?.youjinEl||"")+"、喜神:"+(youjin?.kijiinEl||"")+"\n大運:"+daiunStr+"　流年:"+ryunenStr+"\nJSONのみ出力(前後に何も付けない):\n{\"work\":\"仕事運80字\",\"money\":\"金運80字\",\"health\":\"健康運80字\",\"relation\":\"人間関係80字\"}";
+      const res = await fetch("https://api.anthropic.com/v1/messages",{
+        method:"POST",
+        headers:{"Content-Type":"application/json","x-api-key":globalApiKey,"anthropic-version":"2023-06-01"},
+        body:JSON.stringify({model:"claude-opus-4-5",max_tokens:600,messages:[{role:"user",content:prompt}]})
+      });
+      const data = await res.json();
+      if(data.error) throw new Error(data.error.message);
+      const text = data.content?.[0]?.text||"";
+      const clean = text.replace(/```json|```/g,"").trim();
+      setFortune(JSON.parse(clean));
+    } catch(e){ setError(e.message); }
+    finally{ setLoading(false); }
+  };
+
+  return (
+    <div style={{borderTop:"1px solid #d4b89644",background:"#fdf8f0"}}>
+      <div style={{padding:"6px 14px",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+        <span style={{fontSize:11,fontWeight:700,color:"#5a3a1a"}}>🔮 {year}年の運勢鑑定</span>
+        <button onClick={()=>{if(!open){setOpen(true);if(!fortune&&!loading)generate();}else setOpen(false);}}
+          style={{padding:"3px 12px",borderRadius:10,border:"1px solid #c4a070",background:open?"#e8a030":"transparent",color:open?"#fff":"#8a6a3a",fontSize:10,cursor:"pointer",fontWeight:open?700:400}}>
+          {open?"▲ 閉じる":"▼ 表示"}
+        </button>
+        {open&&fortune&&<button onClick={generate} style={{padding:"3px 10px",borderRadius:10,border:"1px solid #c4a070",background:"transparent",color:"#8a6a3a",fontSize:9,cursor:"pointer"}}>🔄 再鑑定</button>}
+      </div>
+      {open&&(
+        <div style={{padding:"0 14px 10px"}}>
+          {loading&&<div style={{fontSize:12,color:"#9a8a70",padding:"8px 0"}}>鑑定中…</div>}
+          {error&&<div style={{fontSize:11,color:"#c04040",padding:"4px 0"}}>{error}</div>}
+          {fortune&&(
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(170px,1fr))",gap:6}}>
+              {[["💼","仕事運","work","#5080c0"],["💰","金運","money","#c4a030"],["🌿","健康運","health","#4a9a4a"],["👥","人間関係","relation","#c06080"]].map(([icon,label,key,col])=>(
+                fortune[key]&&<div key={key} style={{background:col+"10",border:"1px solid "+col+"44",borderRadius:8,padding:"8px 10px"}}>
+                  <div style={{fontSize:10,fontWeight:700,color:col,marginBottom:4}}>{icon} {label}</div>
+                  <div style={{fontSize:11,lineHeight:1.6,color:"#4a3828"}}>{fortune[key]}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── PDF→JSON変換ガイド ────────────────────────────────────────
 
-function YearMemoGroup({year, memos, allMemos, birthYear, mainResult, children, calcGakuNen, calcFamilyResult, editIdx, editText, editDate, editYear, editAge, startEdit, saveEdit, deleteMemo, deleteIdx, setDeleteIdx, setEditIdx, setEditText, setEditDate, setEditYear, setEditAge, deleteYear, deleteYearKey, editIsWork, setEditIsWork, workFilter, setWorkFilter}) {
+function YearMemoGroup({year, memos, allMemos, birthYear, mainResult, children, calcGakuNen, calcFamilyResult, editIdx, editText, editDate, editYear, editAge, startEdit, saveEdit, deleteMemo, deleteIdx, setDeleteIdx, setEditIdx, setEditText, setEditDate, setEditYear, setEditAge, deleteYear, deleteYearKey, editIsWork, setEditIsWork, workFilter, setWorkFilter, globalApiKey}) {
   const [openMeishiki, setOpenMeishiki] = React.useState(null);
   const [collapsed, setCollapsed] = React.useState(true); // デフォルト折りたたみ
   const bikoKey = `shichusuimei_biko_${year}`;
@@ -1565,6 +1626,11 @@ function YearMemoGroup({year, memos, allMemos, birthYear, mainResult, children, 
           <div style={{padding:"8px 12px",borderBottom:"1px solid #d4b89644",background:"#fef9f2"}}>
             {renderInlineMeishiki(openResult, year)}
           </div>
+        )}
+
+        {/* ── 年間運勢AIパネル ── */}
+        {mainResult && globalApiKey && (
+          <YearFortuneCard year={year} myAge={myAge} mainResult={mainResult} ryunen={ryunen} myDaiun={myDaiun} globalApiKey={globalApiKey}/>
         )}
 
         {/* フィルターボタン */}
@@ -4990,7 +5056,7 @@ function App() {
             {/* ── 人生メモタブ ── */}
             {activeTab==="memo" && (
               <div style={{border:"1px solid #c4a070",borderTop:"none",borderRadius:"0 8px 8px 8px",padding:"24px 16px",background:"rgba(253,248,242,0.95)"}}>
-                <AgeMemoSection key={"memo_"+result.bd+"_"+result.name} birthYear={Number(result.bd.split("-")[0])} bd={result.bd} mainResult={result}/>
+                <AgeMemoSection key={"memo_"+result.bd+"_"+result.name} birthYear={Number(result.bd.split("-")[0])} bd={result.bd} mainResult={result} globalApiKey={globalApiKey}/>
               </div>
             )}
 
