@@ -3905,44 +3905,58 @@ const ALL_YOGO_DEF = (() => {
   return d;
 })();
 
-function YogoSearchPanel() {
+function YogoSearchPanel({globalApiKey}) {
   const [q, setQ] = useState("");
-  const hits = q.trim().length > 0
-    ? Object.entries(ALL_YOGO_DEF).filter(([k,v]) =>
-        k.includes(q) || (v.kw&&v.kw.includes(q)) || (v.txt&&v.txt.includes(q))
-      )
-    : [];
+  const [answer, setAnswer] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleAsk = async () => {
+    if(!q.trim()) return;
+    if(!globalApiKey||!globalApiKey.trim()) { setError("APIキーを設定してください"); return; }
+    setLoading(true); setAnswer(null); setError(null);
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method:"POST",
+        headers:{"Content-Type":"application/json","x-api-key":globalApiKey,"anthropic-version":"2023-06-01"},
+        body:JSON.stringify({
+          model:"claude-opus-4-5",
+          max_tokens:600,
+          system:"あなたは四柱推命の専門家です。質問に対して端的かつ正確に答えてください。専門用語は使ってよいですが、300字以内で簡潔に答えてください。",
+          messages:[{role:"user",content:q}]
+        })
+      });
+      const data = await res.json();
+      if(data.error) throw new Error(data.error.message);
+      setAnswer(data.content?.[0]?.text||"");
+    } catch(e) { setError(e.message); }
+    finally { setLoading(false); }
+  };
+
+  const handleKey = (e) => { if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); handleAsk(); } };
+
   return (
     <div style={{margin:"0 0 12px",padding:"10px 14px",background:"rgba(253,248,242,0.95)",border:"1px solid #d4b896",borderRadius:10}}>
-      <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-        <span style={{fontSize:12,color:"#5a3a1a",fontWeight:700,whiteSpace:"nowrap"}}>📖 用語を調べる</span>
-        <div style={{display:"flex",alignItems:"center",flex:1,minWidth:180,border:"1px solid #c4a070",borderRadius:6,background:"#fffdf8",overflow:"hidden"}}>
-          <span style={{padding:"0 8px",fontSize:13,color:"#8a6a3a"}}>🔍</span>
-          <input
-            type="text"
-            value={q}
-            onChange={e=>setQ(e.target.value)}
-            placeholder="十二運・神煞・天干・地支を検索…"
-            style={{flex:1,border:"none",outline:"none",background:"transparent",fontSize:12,padding:"7px 4px",color:"#3a2e22",fontFamily:"inherit"}}
-          />
-          {q&&<button onClick={()=>setQ("")} style={{border:"none",background:"none",cursor:"pointer",padding:"0 8px",fontSize:13,color:"#aaa"}}>✕</button>}
-        </div>
+      <div style={{fontSize:12,color:"#5a3a1a",fontWeight:700,marginBottom:8,letterSpacing:1}}>📖 四柱推命について質問する</div>
+      <div style={{display:"flex",gap:8,alignItems:"flex-start"}}>
+        <input
+          type="text"
+          value={q}
+          onChange={e=>setQ(e.target.value)}
+          onKeyDown={handleKey}
+          placeholder="例：沐浴はどの柱に付くと象意が出やすいですか？"
+          style={{flex:1,padding:"7px 10px",borderRadius:7,border:"1px solid #c4a070",fontSize:12,background:"#fffdf8",fontFamily:"inherit",color:"#3a2e22",outline:"none"}}
+        />
+        <button
+          onClick={handleAsk}
+          disabled={loading||!q.trim()}
+          style={{padding:"7px 14px",borderRadius:7,border:"none",background:loading||!q.trim()?"#d4c4a8":"#e8a030",color:"#fff",fontSize:12,fontWeight:700,cursor:loading||!q.trim()?"default":"pointer",whiteSpace:"nowrap"}}
+        >{loading?"…":"質問"}</button>
       </div>
-      {q.trim()&&(
-        <div style={{marginTop:10}}>
-          {hits.length===0
-            ? <div style={{fontSize:12,color:"#9a8a70",padding:"6px 4px"}}>「{q}」は見つかりませんでした</div>
-            : hits.map(([k,v],i)=>(
-                <div key={i} style={{padding:"8px 10px",borderRadius:8,background:`${v.col}12`,border:`1px solid ${v.col}44`,marginBottom:6}}>
-                  <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4,flexWrap:"wrap"}}>
-                    <span style={{fontSize:13,fontWeight:700,color:v.col}}>{k.includes("：")?k.split("：")[1]:k}</span>
-                    <span style={{fontSize:10,color:v.col,background:`${v.col}22`,padding:"1px 7px",borderRadius:10,border:`1px solid ${v.col}44`}}>{v.kw}</span>
-                    <span style={{fontSize:10,color:"#9a8a70",marginLeft:"auto"}}>{k.includes("：")?k.split("：")[0]:"神煞"}</span>
-                  </div>
-                  <div style={{fontSize:11,color:"#5a4a3a",lineHeight:1.7}}>{v.txt}</div>
-                </div>
-              ))
-          }
+      {error && <div style={{fontSize:11,color:"#c04040",marginTop:6}}>{error}</div>}
+      {answer && (
+        <div style={{marginTop:10,padding:"10px 12px",background:"#fdf5e8",borderRadius:8,border:"1px solid #e8c88044",fontSize:12,lineHeight:1.7,color:"#3a2e22"}}>
+          {answer}
         </div>
       )}
     </div>
@@ -4934,7 +4948,7 @@ function App() {
               );
             })()}
 
-            <YogoSearchPanel/>
+            <YogoSearchPanel globalApiKey={globalApiKey}/>
 
             <Section title={`▌ 大運　（立命：${result.daiun.list[0]?.startYear}年〜）`}>
               <DaiunTableH daiun={result.daiun} dSi={result.pillars.day.stemIdx} pillars={result.pillars}/>
