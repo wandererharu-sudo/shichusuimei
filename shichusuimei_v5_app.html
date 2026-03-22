@@ -1474,6 +1474,17 @@ function YearMemoGroup({year, memos, allMemos, birthYear, mainResult, children, 
   },[bikoKey]);
   const saveBiko = (b) => { setBiko(b); window.storage.set(bikoKey, JSON.stringify(b)).catch(()=>{}); };
   const [showGogyou, setShowGogyou] = React.useState(true);
+  const [familyMemos, setFamilyMemos] = React.useState({});
+  React.useEffect(()=>{
+    const key = "shichusuimei_familymemo_"+year;
+    window.storage.get(key).then(r=>{ if(r&&r.value){ try{ setFamilyMemos(JSON.parse(r.value)); }catch(e){} } }).catch(()=>{});
+  },[year]);
+  const saveFamilyMemo = (ci, text) => {
+    const key = "shichusuimei_familymemo_"+year;
+    const next = {...familyMemos, [ci]: text};
+    setFamilyMemos(next);
+    window.storage.set(key, JSON.stringify(next)).catch(()=>{});
+  };
 
   const myAge = year - birthYear;
   const ryunen = mainResult ? calcRyunen(year, 1, mainResult.pillars.day.stemIdx)[0] : null;
@@ -1528,14 +1539,81 @@ function YearMemoGroup({year, memos, allMemos, birthYear, mainResult, children, 
         <div style={{fontSize:11,color:"#7a5a2a",fontWeight:700,marginBottom:8}}>{openName} の命式（{targetYear}年）</div>
         <div style={{display:"flex",flexDirection:"row",gap:12,alignItems:"flex-start",flexWrap:"wrap"}}>
           <div style={{flexShrink:0,overflowX:"auto"}}><MeishikiTable data={mr}/></div>
-          <div style={{display:"flex",flexDirection:"column",gap:8,flexShrink:0}}>
-            <div style={{fontSize:11,color:"#5a3a1a",fontWeight:700}}>▌ {targetYear}年の五行（命式＋大運＋年運）</div>
-            <GogyouCircle ec={combinedEc} stemEc={combinedStemEc} branchEc={combinedBranchEc} extraEc={{木:0,火:0,土:0,金:0,水:0}} dayEl={mr.pillars.day.stemEl}
-                gokaInfo={(()=>{const GCOLS={木:"#7ecf6e",火:"#f07070",土:"#d4a84b",金:"#c0c8e0",水:"#6ab0e8"};const info=[];Object.entries(mr.gokaMoveStem||{}).forEach(([i,{from,to}])=>info.push({color:GCOLS[from],toEl:to,type:"stem"}));Object.entries(mr.gokaMoveBranch||{}).forEach(([i,{from,to}])=>info.push({color:GCOLS[from],toEl:to,type:"branch"}));return info;})()}/>
-            <div style={{fontSize:10,color:"#8a7a60"}}>
-              {cDaiun&&`大運：${cDaiun.stem}${cDaiun.branch}　`}{cRyunen&&`年運：${cRyunen.stem}${cRyunen.branch}`}
+          {/* 右側：大運・年運パネル上下 + メモ */}
+          {(cDaiun||cRyunen) && (()=>{
+          const cdSi = mr.pillars.day.stemIdx;
+          const cPs = mr.pillars;
+          const cMeishikiBis = [cPs.year,cPs.month,cPs.day,cPs.hour].filter(Boolean).map(p=>p.branchIdx);
+          const cMeishikiSis = [cPs.year,cPs.month,cPs.day,cPs.hour].filter(Boolean).map(p=>p.stemIdx);
+          const renderCUnPanel = (label, un, accentColor) => {
+            if(!un) return null;
+            const ju = getJunishi(cdSi, un.branchIdx);
+            const th = getTsuhen(cdSi, un.stemIdx);
+            const kuubowBis = getKuubou(cdSi, cPs.day.branchIdx);
+            const isKuubow = kuubowBis.includes(un.branchIdx);
+            const ss = mr.shinSatsu || {};
+            const shinSatsuMarks = (ss.byBi && ss.byBi[un.branchIdx]) ? ss.byBi[un.branchIdx] : [];
+            const RIKUGAI_MAP = [[1,6],[0,7],[11,4],[10,5],[9,2],[8,3]];
+            const gaiList = [];
+            RIKUGAI_MAP.forEach(([a,b])=>{
+              if(un.branchIdx===a && cMeishikiBis.includes(b)) gaiList.push(BRANCHES[b]);
+              if(un.branchIdx===b && cMeishikiBis.includes(a)) gaiList.push(BRANCHES[a]);
+            });
+            const stemTags = [];
+            const kg = KANGOKAN[un.stemIdx];
+            if(kg && cMeishikiSis.includes(kg.p)) stemTags.push("干合("+kg.e+")");
+            cMeishikiSis.forEach(msi=>{ const mkgo=KANGOKAN[msi]; if(mkgo&&mkgo.p===un.stemIdx) stemTags.push("干合("+mkgo.e+")"); });
+            const STEM_KOKU = [[0,6],[1,7],[2,8],[3,9],[4,0],[5,1],[6,2],[7,3],[8,4],[9,5]];
+            const tenchiTags = [];
+            [cPs.year,cPs.month,cPs.day,cPs.hour].filter(Boolean).forEach(p=>{
+              const branchChu = SOCHUU.find(([a,b])=>(a===p.branchIdx&&b===un.branchIdx)||(b===p.branchIdx&&a===un.branchIdx));
+              if(!branchChu) return;
+              const isKoku = STEM_KOKU.some(([a,b])=>(a===p.stemIdx&&b===un.stemIdx)||(b===p.stemIdx&&a===un.stemIdx));
+              if(isKoku) tenchiTags.push("天剋地冲("+p.stem+p.branch+")");
+              else stemTags.push("地冲("+p.branch+BRANCHES[un.branchIdx]+")");
+            });
+            const AUSPICIOUS = ["貴","文","学","驛","禄","将","桃","紅","咸","天","月","天合","月合"];
+            const INAUSPICIOUS = ["羊","劫","亡","孤","弔","喪","元","害","華","寡","天羅地網","魁"];
+            const ausMarks = shinSatsuMarks.filter(m=>AUSPICIOUS.includes(m));
+            const inaMarks = shinSatsuMarks.filter(m=>INAUSPICIOUS.includes(m));
+            const MARK_LABEL={貴:"天乙貴人",文:"文昌",学:"学堂",驛:"驛馬",禄:"禄神",将:"将星",桃:"桃花",紅:"紅艶",羊:"羊刃",劫:"劫煞",空:"空亡",亡:"亡神",孤:"孤辰",弔:"弔客",喪:"喪門",元:"元辰",咸:"咸池",害:"六害",華:"華蓋",寡:"寡宿","天羅地網":"天羅地網","天合":"天徳合","月合":"月徳合","天":"天徳","月":"月徳","魁":"魁罡"};
+            return (
+              <div style={{background:"#fefaf3",border:"1px solid "+accentColor,borderRadius:8,padding:"6px 8px",flex:1,minWidth:120}}>
+                <div style={{fontSize:9,color:accentColor,fontWeight:700,marginBottom:4,borderBottom:"1px solid "+accentColor+"44",paddingBottom:2}}>{label}</div>
+                <div style={{display:"flex",gap:4,alignItems:"baseline",marginBottom:3}}>
+                  <span style={{fontSize:16,fontWeight:700,color:EC[un.stemEl]?.tx}}>{un.stem}</span>
+                  <span style={{fontSize:16,fontWeight:700,color:EC[un.branchEl]?.tx}}>{un.branch}</span>
+                </div>
+                <table style={{borderCollapse:"collapse",fontSize:9,width:"100%"}}>
+                  <tbody>
+                    <tr><td style={{color:"#9a8a70",paddingRight:4,whiteSpace:"nowrap"}}>通変星</td><td style={{fontWeight:700,color:"#3a2a1a"}}>{th||"—"}</td></tr>
+                    <tr><td style={{color:"#9a8a70",paddingRight:4,whiteSpace:"nowrap"}}>十二運</td><td style={{fontWeight:700,color:"#5a6a2a"}}>{ju||"—"}</td></tr>
+                    {isKuubow && <tr><td style={{color:"#9a8a70",paddingRight:4}}>空亡</td><td><span style={{fontSize:10,padding:"1px 5px",borderRadius:8,background:"#88888822",border:"1px solid #888",color:"#555",fontWeight:700}}>空亡</span></td></tr>}
+                    {gaiList.length>0 && <tr><td style={{color:"#9a8a70",paddingRight:4}}>害</td><td>{gaiList.map((b,i)=><span key={i} style={{fontSize:10,padding:"1px 5px",borderRadius:8,background:"#e0804022",border:"1px solid #e08040",color:"#a05010",fontWeight:700,marginRight:2}}>{b}との害</span>)}</td></tr>}
+                    {(ausMarks.length>0||inaMarks.length>0) && <tr><td style={{color:"#9a8a70",paddingRight:4,verticalAlign:"top"}}>神煞</td><td>{ausMarks.map((m,i)=><span key={"a"+i} style={{fontSize:10,padding:"1px 5px",borderRadius:8,background:"#4a904022",border:"1px solid #4a9040",color:"#2a6020",fontWeight:700,marginRight:2,marginBottom:2,display:"inline-block"}}>{MARK_LABEL[m]||m}</span>)}{inaMarks.map((m,i)=><span key={"b"+i} style={{fontSize:10,padding:"1px 5px",borderRadius:8,background:"#c0404022",border:"1px solid #c04040",color:"#902020",fontWeight:700,marginRight:2,marginBottom:2,display:"inline-block"}}>{MARK_LABEL[m]||m}</span>)}</td></tr>}
+                    {tenchiTags.length>0 && <tr><td style={{color:"#9a8a70",paddingRight:4,whiteSpace:"nowrap"}}>天剋地冲</td><td>{tenchiTags.map((t,i)=><span key={i} style={{fontSize:10,padding:"1px 5px",borderRadius:8,background:"#f0404022",border:"1px solid #f04040",color:"#900000",fontWeight:700,marginRight:2,display:"inline-block"}}>{t}</span>)}</td></tr>}
+                    {stemTags.length>0 && <tr><td style={{color:"#9a8a70",paddingRight:4,whiteSpace:"nowrap"}}>干支関係</td><td>{stemTags.map((t,i)=>{const col=t.includes("合")?"#2060a0":t.includes("冲")?"#c04040":"#9a6010";return <span key={i} style={{fontSize:10,padding:"1px 5px",borderRadius:8,background:col+"22",border:"1px solid "+col,color:col,fontWeight:700,marginRight:2,display:"inline-block"}}>{t}</span>;})}</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            );
+          };
+          return (
+            <div style={{display:"flex",flexDirection:"column",gap:6,minWidth:160,flex:1}}>
+              {renderCUnPanel("大運", cDaiun, "#8a6a3a")}
+              {renderCUnPanel("年運", cRyunen, "#5a3a8a")}
+              <div style={{background:"#fdf8f2",border:"1px solid #d4b89666",borderRadius:8,padding:"6px 8px"}}>
+                <div style={{fontSize:9,color:"#8a7a60",fontWeight:700,marginBottom:3}}>📝 メモ</div>
+                <textarea
+                  value={typeof openMeishiki==="number" ? (familyMemos[openMeishiki]||"") : (familyMemos["self"]||"")}
+                  onChange={e=>saveFamilyMemo(typeof openMeishiki==="number" ? openMeishiki : "self", e.target.value)}
+                  placeholder="自由に入力..."
+                  style={{width:"100%",minHeight:52,padding:"4px 6px",borderRadius:4,border:"1px solid #c4a07077",fontSize:11,background:"#fffdf8",color:"#3a2e22",boxSizing:"border-box",resize:"vertical",lineHeight:1.6,fontFamily:"inherit"}}
+                />
+              </div>
             </div>
-          </div>
+          );
+        })()}
         </div>
         <div style={{marginTop:10,overflowX:"auto"}}>
           <div style={{fontSize:11,color:"#5a3a1a",fontWeight:700,marginBottom:4}}>▌ 大運</div>
@@ -1607,17 +1685,178 @@ function YearMemoGroup({year, memos, allMemos, birthYear, mainResult, children, 
                 style={{marginLeft:"auto",padding:"2px 8px",borderRadius:6,background:"transparent",border:"1px solid #c4a070",color:"#8a6a3a",fontSize:9,cursor:"pointer"}}
               >{showGogyou?"▲ 閉じる":"▼ 表示"}</button>
             </div>
-            {showGogyou && (
-              <div style={{display:"flex",alignItems:"flex-start",gap:16,flexWrap:"wrap"}}>
-                <GogyouCircle
-                  ec={yearEc} stemEc={yearStemEc} branchEc={yearBranchEc}
-                  extraEc={{木:0,火:0,土:0,金:0,水:0}}
-                  dayEl={mainResult.pillars.day.stemEl}
-                  scale={2/3}
-                />
-
-              </div>
-            )}
+            {showGogyou && mainResult && mainResult.pillars && mainResult.pillars.hour && (()=>{
+              const ps = mainResult.pillars;
+              const meishikiBis = [ps.year.branchIdx, ps.month.branchIdx, ps.day.branchIdx, ps.hour.branchIdx];
+              const meishikiSis = [ps.year.stemIdx, ps.month.stemIdx, ps.day.stemIdx, ps.hour.stemIdx];
+              const dSi = ps.day.stemIdx;
+              const BN = BRANCHES;
+              const daiunBi = myDaiun ? myDaiun.branchIdx : null;
+              const daiunSi = myDaiun ? myDaiun.stemIdx : null;
+              const ryunenBi = ryunen ? ryunen.branchIdx : null;
+              const ryunenSi = ryunen ? ryunen.stemIdx : null;
+              const allBis = [...meishikiBis, ...(daiunBi!=null?[daiunBi]:[]), ...(ryunenBi!=null?[ryunenBi]:[])];
+              const allSis = [...meishikiSis, ...(daiunSi!=null?[daiunSi]:[]), ...(ryunenSi!=null?[ryunenSi]:[])];
+              const kankeiList = [];
+              const seen = new Set();
+              const addK = (tag) => { if(!seen.has(tag)){seen.add(tag);kankeiList.push(tag);} };
+              ROKUGOU.forEach(([x,y,e])=>{ if(allBis.includes(x)&&allBis.includes(y)) addK("六合("+BN[x]+BN[y]+")"); });
+              SOCHUU.forEach(([x,y])=>{ if(allBis.includes(x)&&allBis.includes(y)) addK("冲("+BN[x]+BN[y]+")"); });
+              KEI_PAIRS.forEach(([x,y])=>{ if(allBis.includes(x)&&allBis.includes(y)) addK("刑("+BN[x]+BN[y]+")"); });
+              KEI_JIKE.forEach(bi=>{ if(allBis.filter(b=>b===bi).length>=2) addK("自刑("+BN[bi]+")"); });
+              SANGOU.forEach(([b1,b2,b3,el])=>{ if([b1,b2,b3].every(b=>allBis.includes(b))) addK("三合"+el+"局"); });
+              const kg = KANGOKAN[dSi];
+              if(kg && allSis.includes(kg.p)) addK("干合("+kg.e+")");
+              const tagColor = (t) => {
+                if(t.includes("冲")) return {bg:"#f0707022",bd:"#f07070",tx:"#c04040"};
+                if(t.includes("合")) return {bg:"#6ab0e822",bd:"#6ab0e8",tx:"#2060a0"};
+                if(t.includes("刑")) return {bg:"#e0a04022",bd:"#e0a040",tx:"#9a6010"};
+                return {bg:"#a0c0a022",bd:"#a0c0a0",tx:"#407040"};
+              };
+              return (
+                <div style={{display:"flex",alignItems:"stretch",gap:10,flexWrap:"nowrap",overflowX:"auto",width:"100%",justifyContent:"space-between"}}>
+                  <GogyouCircle
+                    ec={yearEc} stemEc={yearStemEc} branchEc={yearBranchEc}
+                    extraEc={{木:0,火:0,土:0,金:0,水:0}}
+                    dayEl={ps.day.stemEl}
+                    scale={2/3}
+                  />
+                  <div style={{background:"#fefaf3",border:"1px solid #d4b896",borderRadius:8,padding:"8px 10px",minWidth:160,flexShrink:0,flex:1}}>
+                    <div style={{fontSize:10,color:"#7a5a2a",fontWeight:700,marginBottom:6}}>命式</div>
+                    <table style={{borderCollapse:"collapse",fontSize:11,tableLayout:"fixed",width:"100%"}}>
+                      <colgroup>
+                        <col style={{width:28}}/><col style={{width:"25%"}}/><col style={{width:"25%"}}/><col style={{width:"25%"}}/><col style={{width:"25%"}}/>
+                      </colgroup>
+                      <thead>
+                        <tr>
+                          <th style={{padding:"2px 4px",color:"#9a8a70",fontWeight:600,fontSize:9}}></th>
+                          {["時柱","日柱","月柱","年柱"].map(l=><th key={l} style={{padding:"2px 4px",color:"#9a8a70",fontWeight:600,fontSize:9,textAlign:"center"}}>{l}</th>)}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td style={{padding:"2px 4px",color:"#9a8a70",fontSize:9,whiteSpace:"nowrap"}}>天干</td>
+                          {[ps.hour,ps.day,ps.month,ps.year].map((p,i)=>{const c=EC[p.stemEl]||{}; return <td key={i} style={{padding:"2px 4px",textAlign:"center"}}><span style={{fontSize:18,fontWeight:700,color:c.tx}}>{p.stem}</span></td>;})}
+                        </tr>
+                        <tr>
+                          <td style={{padding:"2px 4px",color:"#9a8a70",fontSize:9,whiteSpace:"nowrap"}}>地支</td>
+                          {[ps.hour,ps.day,ps.month,ps.year].map((p,i)=>{const c=EC[p.branchEl]||{}; return <td key={i} style={{padding:"2px 4px",textAlign:"center"}}><span style={{fontSize:18,fontWeight:700,color:c.tx}}>{p.branch}</span></td>;})}
+                        </tr>
+                        <tr>
+                          <td style={{padding:"2px 4px",color:"#9a8a70",fontSize:9,whiteSpace:"nowrap"}}>大運</td>
+                          <td colSpan={2} style={{padding:"2px 4px",textAlign:"center"}}>
+                            {myDaiun&&<><span style={{fontSize:15,fontWeight:700,color:EC[myDaiun.stemEl]?.tx}}>{myDaiun.stem}</span><span style={{fontSize:15,fontWeight:700,color:EC[myDaiun.branchEl]?.tx,marginLeft:2}}>{myDaiun.branch}</span></>}
+                          </td>
+                          <td style={{padding:"2px 4px",color:"#9a8a70",fontSize:9,whiteSpace:"nowrap"}}>年運</td>
+                          <td style={{padding:"2px 4px",textAlign:"center"}}>
+                            {ryunen&&<><span style={{fontSize:15,fontWeight:700,color:EC[ryunen.stemEl]?.tx}}>{ryunen.stem}</span><span style={{fontSize:15,fontWeight:700,color:EC[ryunen.branchEl]?.tx,marginLeft:2}}>{ryunen.branch}</span></>}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  {(()=>{
+                    // 大運・流年それぞれの情報パネル
+                    const renderUnPanel = (label, un, accentColor) => {
+                      if(!un) return null;
+                      const ju = getJunishi(dSi, un.branchIdx);
+                      const th = getTsuhen(dSi, un.stemIdx);
+                      const kuubowBis = getKuubou(dSi, ps.day.branchIdx);
+                      const isKuubow = kuubowBis.includes(un.branchIdx);
+                      // 神煞：大運/年運の地支インデックスで命式shinSatsuを再計算
+                      const ss = mainResult.shinSatsu || {};
+                      const shinSatsuMarks = (ss.byBi && ss.byBi[un.branchIdx]) ? ss.byBi[un.branchIdx] : [];
+                      // 命式全地支との神煞を追加チェック（流年法）
+                      const extraMarks = [];
+                      // 命式地支との冲チェック → 空亡効果半減など
+                      // 命式地支との害チェック
+                      const RIKUGAI_MAP = [[1,6],[0,7],[11,4],[10,5],[9,2],[8,3]];
+                      const gaiList = [];
+                      RIKUGAI_MAP.forEach(([a,b])=>{
+                        if(un.branchIdx===a && meishikiBis.includes(b)) gaiList.push(BRANCHES[b]);
+                        if(un.branchIdx===b && meishikiBis.includes(a)) gaiList.push(BRANCHES[a]);
+                      });
+                      // 命式天干との関係（天干合・剋）
+                      const stemTags = [];
+                      const kg = KANGOKAN[un.stemIdx];
+                      if(kg && meishikiSis.includes(kg.p)) stemTags.push("干合("+kg.e+")");
+                      meishikiSis.forEach(msi=>{
+                        const mkgo = KANGOKAN[msi];
+                        if(mkgo && mkgo.p===un.stemIdx) stemTags.push("干合("+mkgo.e+")");
+                      });
+                      // 天剋地冲チェック（天干が剋し合い、地支が冲）
+                      const STEM_KOKU = [[0,6],[1,7],[2,8],[3,9],[4,0],[5,1],[6,2],[7,3],[8,4],[9,5]]; // 甲→戊 乙→己...
+                      const tenchiTags = [];
+                      [[ps.year,0],[ps.month,1],[ps.day,2],[ps.hour,3]].forEach(([p,_])=>{
+                        if(!p) return;
+                        const branchChu = SOCHUU.find(([a,b])=>(a===p.branchIdx&&b===un.branchIdx)||(b===p.branchIdx&&a===un.branchIdx));
+                        if(!branchChu) return;
+                        // 地支が冲 → 天干が剋かチェック
+                        const isKoku = STEM_KOKU.some(([a,b])=>(a===p.stemIdx&&b===un.stemIdx)||(b===p.stemIdx&&a===un.stemIdx));
+                        if(isKoku) tenchiTags.push("天剋地冲("+p.stem+p.branch+")");
+                        else stemTags.push("地冲("+p.branch+BRANCHES[un.branchIdx]+")");
+                      });
+                      // 天徳合・月徳合チェック（天干が合する＋月支条件）
+                      const AUSPICIOUS = ["貴","文","学","驛","禄","将","桃","紅","咸","天","月","天合","月合"];
+                      const INAUSPICIOUS = ["羊","劫","亡","孤","弔","喪","元","害","華","寡","天羅地網","魁"];
+                      const ausMarks = shinSatsuMarks.filter(m=>AUSPICIOUS.includes(m));
+                      const inaMarks = shinSatsuMarks.filter(m=>INAUSPICIOUS.includes(m));
+                      const MARK_LABEL={貴:"天乙貴人",文:"文昌",学:"学堂",驛:"驛馬",禄:"禄神",将:"将星",桃:"桃花",紅:"紅艶",羊:"羊刃",劫:"劫煞",空:"空亡",亡:"亡神",孤:"孤辰",弔:"弔客",喪:"喪門",元:"元辰",咸:"咸池",害:"六害",華:"華蓋",寡:"寡宿","天羅地網":"天羅地網","天合":"天徳合","月合":"月徳合","天":"天徳","月":"月徳","魁":"魁罡"};
+                      return (
+                        <div style={{background:"#fefaf3",border:"1px solid "+accentColor,borderRadius:8,padding:"6px 8px",minWidth:100,flexShrink:0,flex:1}}>
+                          <div style={{fontSize:9,color:accentColor,fontWeight:700,marginBottom:4,borderBottom:"1px solid "+accentColor+"44",paddingBottom:2}}>{label}</div>
+                          <div style={{display:"flex",gap:4,alignItems:"baseline",marginBottom:3}}>
+                            <span style={{fontSize:16,fontWeight:700,color:EC[un.stemEl]?.tx}}>{un.stem}</span>
+                            <span style={{fontSize:16,fontWeight:700,color:EC[un.branchEl]?.tx}}>{un.branch}</span>
+                          </div>
+                          <table style={{borderCollapse:"collapse",fontSize:9,width:"100%"}}>
+                            <tbody>
+                              <tr>
+                                <td style={{color:"#9a8a70",paddingRight:4,whiteSpace:"nowrap"}}>通変星</td>
+                                <td style={{fontWeight:700,color:"#3a2a1a"}}>{th||"—"}</td>
+                              </tr>
+                              <tr>
+                                <td style={{color:"#9a8a70",paddingRight:4,whiteSpace:"nowrap"}}>十二運</td>
+                                <td style={{fontWeight:700,color:"#5a6a2a"}}>{ju||"—"}</td>
+                              </tr>
+                              {isKuubow && <tr>
+                                <td style={{color:"#9a8a70",paddingRight:4}}>空亡</td>
+                                <td><span style={{fontSize:10,padding:"1px 5px",borderRadius:8,background:"#88888822",border:"1px solid #888",color:"#555",fontWeight:700}}>空亡</span></td>
+                              </tr>}
+                              {gaiList.length>0 && <tr>
+                                <td style={{color:"#9a8a70",paddingRight:4}}>害</td>
+                                <td>{gaiList.map((b,i)=><span key={i} style={{fontSize:10,padding:"1px 5px",borderRadius:8,background:"#e0804022",border:"1px solid #e08040",color:"#a05010",fontWeight:700,marginRight:2}}>{b}との害</span>)}</td>
+                              </tr>}
+                              {(ausMarks.length>0||inaMarks.length>0) && <tr>
+                                <td style={{color:"#9a8a70",paddingRight:4,verticalAlign:"top"}}>神煞</td>
+                                <td>
+                                  {ausMarks.map((m,i)=><span key={"a"+i} style={{fontSize:10,padding:"1px 5px",borderRadius:8,background:"#4a904022",border:"1px solid #4a9040",color:"#2a6020",fontWeight:700,marginRight:2,marginBottom:2,display:"inline-block"}}>{MARK_LABEL[m]||m}</span>)}
+                                  {inaMarks.map((m,i)=><span key={"b"+i} style={{fontSize:10,padding:"1px 5px",borderRadius:8,background:"#c0404022",border:"1px solid #c04040",color:"#902020",fontWeight:700,marginRight:2,marginBottom:2,display:"inline-block"}}>{MARK_LABEL[m]||m}</span>)}
+                                </td>
+                              </tr>}
+                              {tenchiTags.length>0 && <tr>
+                                <td style={{color:"#9a8a70",paddingRight:4,verticalAlign:"top",whiteSpace:"nowrap"}}>天剋地冲</td>
+                                <td>{tenchiTags.map((t,i)=><span key={i} style={{fontSize:10,padding:"1px 5px",borderRadius:8,background:"#f0404022",border:"1px solid #f04040",color:"#900000",fontWeight:700,marginRight:2,marginBottom:2,display:"inline-block"}}>{t}</span>)}</td>
+                              </tr>}
+                              {stemTags.length>0 && <tr>
+                                <td style={{color:"#9a8a70",paddingRight:4,verticalAlign:"top",whiteSpace:"nowrap"}}>干支関係</td>
+                                <td>{stemTags.map((t,i)=>{const col=t.includes("合")?"#2060a0":t.includes("冲")?"#c04040":"#9a6010"; return <span key={i} style={{fontSize:10,padding:"1px 5px",borderRadius:8,background:col+"22",border:"1px solid "+col,color:col,fontWeight:700,marginRight:2,marginBottom:2,display:"inline-block"}}>{t}</span>;})}</td>
+                              </tr>}
+                            </tbody>
+                          </table>
+                        </div>
+                      );
+                    };
+                    return (
+                      <div style={{display:"flex",flexDirection:"column",gap:6,flexShrink:0,flex:1}}>
+                        {renderUnPanel("大運", myDaiun, "#8a6a3a")}
+                        {renderUnPanel("年運", ryunen, "#5a3a8a")}
+                      </div>
+                    );
+                  })()}
+                </div>
+              );
+            })()}
           </div>
         )}
 
@@ -2014,7 +2253,7 @@ function StemBranchCard({pillars}) {
       <div style={{fontSize:10,color:"#9a8a70",marginBottom:6,letterSpacing:1}}>
         {"◈ 日干（"+dayStem+"）× 月支（"+monthBranch+"）の性質・気質"}
       </div>
-      <div style={{fontSize:13,lineHeight:1.9,color:"#4a3828"}}>{txt}</div>
+      <div style={{fontSize:13,lineHeight:1.4,color:"#4a3828"}}>{txt}</div>
     </div>
   );
 }
@@ -2052,7 +2291,7 @@ function MonthDayImageCard({pillars}) {
       </div>
       {/* 詳細テキスト */}
       {detailText && (
-        <div style={{fontSize:13,lineHeight:1.9,color:"#4a3828",borderTop:"1px solid "+col.bd+"33",paddingTop:8}}>
+        <div style={{fontSize:13,lineHeight:1.4,color:"#4a3828",borderTop:"1px solid "+col.bd+"33",paddingTop:8}}>
           {detailText}
         </div>
       )}
