@@ -1,0 +1,501 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@300;400;600&family=Cinzel:wght@400;600&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--ink:#e8dcc8;--ink-dim:#a89880;--ink-faint:#6a5a4a;--gold:#c8a84b;--gold-dim:#8a6f30;--bg:#0d0b09;--bg-card:#1a1510;--bg-panel:#13100d;--bg-hover:#221c15;--border:rgba(200,168,75,0.18);--border-bright:rgba(200,168,75,0.45);--red:#c45a3a;--yang:#c8a84b;--yin:#6a8aa0}
+body{background:var(--bg);color:var(--ink);font-family:'Noto Serif JP',serif;min-height:600px;background-image:radial-gradient(1px 1px at 20% 30%,rgba(200,168,75,.35) 0%,transparent 100%),radial-gradient(1px 1px at 70% 15%,rgba(200,168,75,.25) 0%,transparent 100%),radial-gradient(1.5px 1.5px at 50% 60%,rgba(200,168,75,.4) 0%,transparent 100%),radial-gradient(1px 1px at 85% 75%,rgba(200,168,75,.2) 0%,transparent 100%);background-attachment:fixed}
+.app{max-width:720px;margin:0 auto;padding:24px 16px}
+
+/* ヘッダー */
+.header{text-align:center;margin-bottom:28px}
+.title{font-family:'Cinzel',serif;font-size:22px;letter-spacing:.2em;color:var(--gold);margin-bottom:6px}
+.subtitle{font-size:12px;color:var(--ink-faint);letter-spacing:.15em}
+
+/* 検索バー */
+.search-wrap{position:relative;margin-bottom:12px}
+.search-input{
+  width:100%;background:#1a1510;border:2px solid var(--border-bright);
+  color:var(--ink);padding:16px 52px 16px 20px;
+  font-family:'Noto Serif JP',serif;font-size:18px;
+  border-radius:12px;outline:none;cursor:text;
+  transition:border-color .2s;
+}
+.search-input:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(200,168,75,.12)}
+.search-input::placeholder{color:var(--ink-faint);font-size:15px}
+.search-icon{position:absolute;right:18px;top:50%;transform:translateY(-50%);font-size:20px;pointer-events:none;opacity:.5}
+.search-clear{position:absolute;right:18px;top:50%;transform:translateY(-50%);font-size:18px;cursor:pointer;opacity:.6;background:none;border:none;color:var(--ink);display:none}
+.search-clear:hover{opacity:1}
+
+/* 候補ヒント */
+.hints{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:20px}
+.hint-chip{background:rgba(200,168,75,.08);border:1px solid var(--border);color:var(--ink-dim);font-size:11px;padding:4px 12px;border-radius:20px;cursor:pointer;transition:all .18s;font-family:'Noto Serif JP',serif}
+.hint-chip:hover{background:rgba(200,168,75,.18);color:var(--ink);border-color:var(--border-bright)}
+
+/* 結果 */
+.result-area{min-height:200px}
+
+/* 卦カード */
+.hex-card{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:24px;margin-bottom:16px;animation:fadeIn .3s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.hex-top{display:flex;align-items:flex-start;gap:20px;margin-bottom:16px;flex-wrap:wrap}
+.hex-glyph-wrap{text-align:center;flex-shrink:0}
+.hex-glyph{font-size:64px;line-height:1;display:block;margin-bottom:6px}
+.hex-trigrams{font-size:11px;color:var(--ink-faint)}
+.hex-info{flex:1;min-width:200px}
+.hex-num{font-family:'Cinzel',serif;font-size:11px;color:var(--gold-dim);letter-spacing:.1em;margin-bottom:4px}
+.hex-name-full{font-size:26px;color:var(--gold);font-weight:600;margin-bottom:4px}
+.hex-name-short{font-size:14px;color:var(--ink-dim);margin-bottom:10px}
+.hex-keywords{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.kw{background:rgba(200,168,75,.1);border:1px solid var(--border);color:var(--gold-dim);font-size:11px;padding:3px 10px;border-radius:16px}
+.hex-text{font-size:14px;color:var(--ink-dim);line-height:1.95;letter-spacing:.04em;margin-bottom:12px;border-left:2px solid var(--border-bright);padding-left:14px}
+.hex-advice{background:rgba(200,168,75,.06);border:1px solid rgba(200,168,75,.2);border-radius:8px;padding:12px 16px;font-size:13px;color:var(--ink-dim);letter-spacing:.05em}
+.hex-advice-label{color:var(--gold-dim);font-size:11px;letter-spacing:.12em;margin-bottom:4px}
+
+/* 卦の構成 */
+.hex-structure{display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+.tri-box{flex:1;min-width:120px;background:rgba(200,168,75,.05);border:1px solid var(--border);border-radius:8px;padding:10px 14px;text-align:center}
+.tri-label{font-size:10px;color:var(--ink-faint);letter-spacing:.1em;margin-bottom:6px}
+.tri-glyph{font-size:28px;display:block;margin-bottom:4px}
+.tri-name{font-size:13px;color:var(--ink)}
+.tri-attr{font-size:11px;color:var(--ink-faint);margin-top:2px}
+
+/* 爻辞アコーディオン */
+.yao-section{margin-top:16px;border-top:1px solid var(--border);padding-top:16px}
+.yao-toggle{background:none;border:none;color:var(--ink-dim);font-family:'Noto Serif JP',serif;font-size:12px;cursor:pointer;padding:0;letter-spacing:.1em;display:flex;align-items:center;gap:6px;width:100%}
+.yao-toggle:hover{color:var(--gold)}
+.yao-toggle-arrow{font-size:10px;transition:transform .2s;margin-left:auto}
+.yao-toggle-arrow.open{transform:rotate(180deg)}
+.yao-list{display:none;margin-top:12px;display:flex;flex-direction:column;gap:6px}
+.yao-list.open{display:flex}
+.yao-item{background:rgba(200,168,75,.03);border:1px solid var(--border);border-radius:7px;overflow:hidden}
+.yao-header{display:flex;align-items:center;gap:8px;padding:9px 12px;cursor:pointer;font-size:12px}
+.yao-header:hover{background:var(--bg-hover)}
+.yao-pos{font-family:'Cinzel',serif;font-size:10px;color:var(--ink-faint);width:28px}
+.yao-seg{display:flex;gap:3px;align-items:center}
+.ys{height:4px;border-radius:2px}
+.ys-y{width:32px;background:var(--yang)}.ys-n{width:12px;background:var(--yin)}
+.yao-name-text{color:var(--ink-dim);flex:1}
+.yao-meaning{font-size:10px;color:var(--ink-faint)}
+.yao-arr{font-size:9px;color:var(--ink-faint);margin-left:4px;transition:transform .2s}
+.yao-arr.open{transform:rotate(180deg)}
+.yao-body{display:none;padding:0 12px 10px;font-size:12px;color:var(--ink-dim);line-height:1.85;border-top:1px solid var(--border)}
+.yao-body.open{display:block}
+
+/* 複数候補 */
+.multi-results{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:16px}
+.mini-card{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:14px 10px;text-align:center;cursor:pointer;transition:all .2s}
+.mini-card:hover{border-color:var(--border-bright);background:var(--bg-hover);transform:translateY(-2px)}
+.mc-glyph{font-size:28px;margin-bottom:4px;line-height:1}
+.mc-num{font-size:10px;color:var(--ink-faint);font-family:'Cinzel',serif;margin-bottom:2px}
+.mc-name{font-size:12px;color:var(--ink-dim)}
+
+/* 空の状態 */
+.empty-state{text-align:center;padding:48px 16px;color:var(--ink-faint)}
+.empty-glyph{font-size:48px;margin-bottom:12px;opacity:.4}
+.empty-text{font-size:14px;letter-spacing:.05em;line-height:1.8}
+.not-found{text-align:center;padding:32px;color:var(--ink-faint);font-size:14px}
+
+/* 全卦一覧 */
+.all-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:8px;margin-top:8px;max-height:320px;overflow-y:auto}
+.all-grid::-webkit-scrollbar{width:4px}
+.all-grid::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.grid-card{background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:8px 6px;text-align:center;cursor:pointer;transition:all .18s}
+.grid-card:hover{border-color:var(--border-bright);background:var(--bg-hover)}
+.gc-g{font-size:20px;line-height:1;margin-bottom:2px}
+.gc-n{font-size:9px;color:var(--ink-faint);margin-bottom:2px}
+.gc-fn{font-size:9px;color:var(--ink-dim)}
+
+.section-title{font-family:'Cinzel',serif;font-size:11px;letter-spacing:.15em;color:var(--gold-dim);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.section-title::after{content:'';flex:1;height:1px;background:var(--border)}
+
+/* 保存ボタン */
+.save-btn{background:rgba(200,168,75,.15);border:1px solid var(--border-bright);color:var(--gold);font-family:'Noto Serif JP',serif;font-size:13px;padding:10px 20px;border-radius:8px;cursor:pointer;transition:all .2s;margin-top:12px;width:100%}
+.save-btn:hover{background:rgba(200,168,75,.3)}
+.save-area{margin-top:12px}
+.save-textarea{width:100%;background:#1a1510;border:1px solid var(--border);color:var(--ink);font-family:'Noto Serif JP',serif;font-size:14px;padding:12px;border-radius:8px;resize:vertical;min-height:80px;outline:none}
+.save-textarea:focus{border-color:var(--gold)}
+.save-textarea::placeholder{color:var(--ink-faint)}
+.save-date{font-size:11px;color:var(--ink-faint);margin-bottom:6px}
+.save-actions{display:flex;gap:8px;margin-top:8px}
+.save-actions button{flex:1;padding:8px;border-radius:6px;font-family:'Noto Serif JP',serif;font-size:12px;cursor:pointer;transition:all .2s}
+.btn-confirm{background:var(--gold);border:none;color:#0d0b09;font-weight:600}
+.btn-confirm:hover{background:#d4b85a}
+.btn-cancel{background:none;border:1px solid var(--border);color:var(--ink-dim)}
+.btn-cancel:hover{border-color:var(--border-bright);color:var(--ink)}
+
+/* 記録一覧 */
+.log-tab{display:flex;gap:0;margin-bottom:16px}
+.log-tab-btn{flex:1;padding:10px;text-align:center;font-family:'Noto Serif JP',serif;font-size:13px;cursor:pointer;border:1px solid var(--border);color:var(--ink-dim);background:none;transition:all .2s}
+.log-tab-btn:first-child{border-radius:8px 0 0 8px}
+.log-tab-btn:last-child{border-radius:0 8px 8px 0}
+.log-tab-btn.active{background:rgba(200,168,75,.15);color:var(--gold);border-color:var(--border-bright)}
+.log-entry{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:10px;animation:fadeIn .3s ease}
+.log-date{font-size:11px;color:var(--gold-dim);margin-bottom:6px}
+.log-hex{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.log-hex-glyph{font-size:28px}
+.log-hex-name{font-size:16px;color:var(--gold);font-weight:600}
+.log-memo{font-size:13px;color:var(--ink);line-height:1.7;white-space:pre-wrap;margin-top:8px;padding:10px;background:rgba(200,168,75,.05);border-radius:6px;border-left:2px solid var(--gold-dim)}
+.log-delete{background:none;border:none;color:var(--ink-faint);font-size:11px;cursor:pointer;padding:4px 8px;margin-top:6px;float:right}
+.log-delete:hover{color:var(--red)}
+.log-empty{text-align:center;padding:32px;color:var(--ink-faint);font-size:13px}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <div class="title">☰ 易経辞典 ☷</div>
+    <div class="subtitle">64卦検索 · 意味・解説・爻辞</div>
+  </div>
+
+  <div class="search-wrap">
+    <input type="text" id="searchInput" class="search-input"
+      placeholder="例：山沢損　乾為天　地天泰　11　屯…"
+      autocomplete="off" oninput="onSearch(this.value)">
+    <span class="search-icon" id="searchIcon">🔍</span>
+    <button class="search-clear" id="searchClear" onclick="clearSearch()">✕</button>
+  </div>
+
+  <div class="hints" id="hints">
+    <span class="hint-chip" onclick="doSearch('地天泰')">地天泰</span>
+    <span class="hint-chip" onclick="doSearch('山沢損')">山沢損</span>
+    <span class="hint-chip" onclick="doSearch('乾為天')">乾為天</span>
+    <span class="hint-chip" onclick="doSearch('水雷屯')">水雷屯</span>
+    <span class="hint-chip" onclick="doSearch('火水未済')">火水未済</span>
+    <span class="hint-chip" onclick="doSearch('風雷益')">風雷益</span>
+    <span class="hint-chip" onclick="doSearch('沢山咸')">沢山咸</span>
+    <span class="hint-chip" onclick="doSearch('一覧')">📋 全卦一覧</span>
+    <span class="hint-chip" onclick="showLog()">📖 占い記録</span>
+  </div>
+
+  <div class="result-area" id="resultArea">
+    <div class="empty-state">
+      <div class="empty-glyph">☯</div>
+      <div class="empty-text">卦の名前・番号・キーワードを入力してください<br>例：「山沢損」「11」「泰」「平和」</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const TRI={
+  '乾':{g:'☰',e:'Heaven',a:'天・強健・父',l:[1,1,1]},
+  '坤':{g:'☷',e:'Earth',a:'地・従順・母',l:[0,0,0]},
+  '震':{g:'☳',e:'Thunder',a:'雷・動・長男',l:[0,0,1]},
+  '坎':{g:'☵',e:'Water',a:'水・険・中男',l:[0,1,0]},
+  '艮':{g:'☶',e:'Mountain',a:'山・止・少男',l:[1,0,0]},
+  '巽':{g:'☴',e:'Wind',a:'風・従・長女',l:[1,1,0]},
+  '離':{g:'☲',e:'Fire',a:'火・麗・中女',l:[1,0,1]},
+  '兌':{g:'☱',e:'Lake',a:'沢・悦・少女',l:[0,1,1]},
+};
+
+const YAO_DEFAULT=[
+  {t:'事の始まり。慎重に基礎を固めよ。焦らず、着実な第一歩が大切。',m:'慎重に基礎を。'},
+  {t:'中正の位。誠実に行動すれば吉。人との調和を大切に。',m:'誠実に調和を。'},
+  {t:'転換点に立つ。内外の変化に注意し、慎重に判断せよ。',m:'転換点。慎重に。'},
+  {t:'上位に近づく。謙虚さを忘れず、正しい方向性を保て。',m:'謙虚さを保て。'},
+  {t:'最も重要な位。中庸の徳を発揮し、大いに事を成す時。',m:'中庸の徳を発揮。'},
+  {t:'物事の極まり。頂点は転換点でもある。謙虚に振り返れ。',m:'極まり。謙虚に。'},
+];
+const YAO_SPECIAL={
+  1:[
+    {n:'初九',t:'潜龍、勿用。まだ時が来ていない。力を内に蓄え、行動を慎む時。焦りは禁物。',m:'蓄積の時。無理に出ず。'},
+    {n:'九二',t:'見龍、田に在り。才能が世に現れ始める。賢明な師や協力者を求めよ。',m:'才能の開花。師を求めよ。'},
+    {n:'九三',t:'昼夜を問わず努力し、危機を意識しつつも怠らない。',m:'不断の努力。危機意識を。'},
+    {n:'九四',t:'進むか留まるかの岐路。どちらを選んでも誤りはない。自らの判断を信じよ。',m:'選択の時。どちらも正しい。'},
+    {n:'九五',t:'飛龍、天に在り。力と徳が一致して、大事を成す時。',m:'絶頂。大いに活躍せよ。'},
+    {n:'上九',t:'亢龍、悔あり。高すぎる者は必ず後悔する。謙虚さを取り戻せ。',m:'行き過ぎへの警告。'},
+  ],
+  2:[
+    {n:'初六',t:'霜を履んで堅氷至る。小さな兆しを見逃すな。',m:'兆しを読め。'},
+    {n:'六二',t:'正直・誠実・大らかさ。自然体でいれば万事吉。',m:'自然体の誠実さが力。'},
+    {n:'六三',t:'才能を隠しつつ誠実であれ。功を誇らず仕えよ。',m:'才を隠し誠実に。'},
+    {n:'六四',t:'言動を慎む。目立たぬが安全。',m:'沈黙が金。慎重に。'},
+    {n:'六五',t:'黄裳、元吉。内なる徳が輝く時。',m:'内なる徳の極致。'},
+    {n:'上六',t:'無理な対立は双方を傷つける。',m:'無理な対立は避けよ。'},
+  ],
+};
+function getYao(hexN,i,isYang){
+  if(YAO_SPECIAL[hexN])return YAO_SPECIAL[hexN][i];
+  const y=YAO_DEFAULT[i];
+  const pos=['初','二','三','四','五','上'][i];
+  const stem=isYang?'九':'六';
+  const name=pos==='初'?`初${stem}`:pos==='上'?`上${stem}`:`${stem}${pos}`;
+  return{n:name,...y};
+}
+
+const HX=[
+  {n:1,g:'䷀',na:'乾',fn:'乾為天',u:'乾',l:'乾',k:['天','強健','創始','純陽'],t:'純粋な陽気の卦。力強い前進の時。天の徳に倣い、剛健かつ誠実に行動せよ。大いなる創造力があなたの前に開かれている。',a:'高い目標を持ち、粘り強く前進する時。'},
+  {n:2,g:'䷁',na:'坤',fn:'坤為地',u:'坤',l:'坤',k:['地','従順','包容','純陰'],t:'純粋な陰気の卦。柔順に受け入れる時。大地のように広大な受容力を持ち、自らを先立てず他に従うことで成功する。',a:'主導するより支える立場が吉。'},
+  {n:3,g:'䷂',na:'屯',fn:'水雷屯',u:'坎',l:'震',k:['困難','産みの苦しみ','忍耐','萌芽'],t:'事始めの困難を示す。混沌から秩序が生まれる過渡期。焦らず着実に土台を築き、助けを借りることを恐れるな。',a:'困難は成長の種。焦らず着実に。'},
+  {n:4,g:'䷃',na:'蒙',fn:'山水蒙',u:'艮',l:'坎',k:['無知','学び','啓蒙','教育'],t:'未熟さと学びの時。師を求め謙虚に学ぶ姿勢が大切。知らないことを恥じず、正しい指導者に従って智慧を得よ。',a:'素直な心で学びを求める時。'},
+  {n:5,g:'䷄',na:'需',fn:'水天需',u:'坎',l:'乾',k:['待機','時機','養い','準備'],t:'時機を待つ卦。力はあっても今は動かず、充分な準備をして好機を待て。喜びをもって待つことが吉を呼ぶ。',a:'焦りは禁物。充電の時期。'},
+  {n:6,g:'䷅',na:'訟',fn:'天水訟',u:'乾',l:'坎',k:['争い','訴訟','調停','対立'],t:'争いの卦。対立を深めず、和解の道を探せ。争いは半ばで止めるのが賢明。中正なる仲介者に頼ることが解決の糸口。',a:'争いを避け妥協点を探せ。'},
+  {n:7,g:'䷆',na:'師',fn:'地水師',u:'坤',l:'坎',k:['組織','指導','統率','軍'],t:'組織と規律の卦。正しい指導者のもと、一致団結して目的に進む時。大義名分を持ち、民心をまとめる力が問われる。',a:'信頼できるリーダーに従え。'},
+  {n:8,g:'䷇',na:'比',fn:'水地比',u:'坎',l:'坤',k:['連帯','協調','親しみ','団結'],t:'団結と親愛の卦。孤立せず、信頼できる仲間と手を携えよ。中心となる強い存在のもとに集まることで、力が増す。',a:'一人より仲間と。連帯が力。'},
+  {n:9,g:'䷈',na:'小畜',fn:'風天小畜',u:'巽',l:'乾',k:['蓄積','小さな抑制','準備','忍耐'],t:'小さな力が大きな力を抑制する卦。今は大事を成すより、着々と力を蓄える時。細部に気を配り、着実な積み重ねを。',a:'大志を抱きつつ小さく積み上げよ。'},
+  {n:10,g:'䷉',na:'履',fn:'天沢履',u:'乾',l:'兌',k:['礼節','慎重','虎の尾','礼'],t:'礼を踏んで進む卦。危険な状況でも礼節を忘れず、誠実に行動すれば吉。虎の尾を踏む如く慎重に、しかし毅然と。',a:'礼儀を重んじ慎重に進め。'},
+  {n:11,g:'䷊',na:'泰',fn:'地天泰',u:'坤',l:'乾',k:['平和','繁栄','調和','大吉'],t:'天地が通じ合う大吉の卦。上下が和合し、物事が順調に進む時。この好機を活かし、大いに事を成せ。',a:'絶好のチャンス。積極的に動け。'},
+  {n:12,g:'䷋',na:'否',fn:'天地否',u:'乾',l:'坤',k:['停滞','閉塞','忍耐','不通'],t:'天地が交わらず閉塞する卦。悪い流れの中でも内なる徳を磨き、時を待て。小人に媚びず、静かに節を守ることが大切。',a:'流れに逆らわず内を充実させよ。'},
+  {n:13,g:'䷌',na:'同人',fn:'天火同人',u:'乾',l:'離',k:['同志','協力','公明正大','連帯'],t:'人々が志を同じくして集まる卦。利己的な小グループではなく、広く公正な連帯を築くことで大事が成し遂げられる。',a:'広く仲間を求め、公正に連携せよ。'},
+  {n:14,g:'䷍',na:'大有',fn:'火天大有',u:'離',l:'乾',k:['豊かさ','大きな所有','繁栄','富'],t:'大いなる豊かさの卦。力と財が集まる時。謙虚さを忘れず、得た豊かさを社会に還元することで、さらに大きな繁栄を得る。',a:'豊かさは謙虚さで保たれる。'},
+  {n:15,g:'䷎',na:'謙',fn:'地山謙',u:'坤',l:'艮',k:['謙虚','謙遜','控えめ'],t:'謙虚さの卦。高いところにあっても低く構え、低いところにあっても卑屈にならない。真の謙虚さが人を動かし、万事を整える。',a:'謙虚さが最大の強さ。'},
+  {n:16,g:'䷏',na:'豫',fn:'雷地豫',u:'震',l:'坤',k:['歓喜','準備','先見','喜び'],t:'喜びと先見の卦。音楽のように心を合わせ、人々の心を動かす時。適切な準備と熱意があれば、大きな動員力となる。',a:'熱意と準備で人を動かせ。'},
+  {n:17,g:'䷐',na:'随',fn:'沢雷随',u:'兌',l:'震',k:['随従','適応','流れ','柔軟'],t:'状況に随い適応する卦。固執せず、時の流れに柔軟に対応することが吉。真の指導者も状況に応じて姿を変える。',a:'流れに乗り、柔軟に適応せよ。'},
+  {n:18,g:'䷑',na:'蠱',fn:'山風蠱',u:'艮',l:'巽',k:['改革','刷新','腐敗の除去','再生'],t:'腐敗を正し刷新する卦。問題の根本原因を直視し、勇気を持って改革に着手せよ。過去の過ちを正すことで明るい未来を開く。',a:'根本的な改革に着手する時。'},
+  {n:19,g:'䷒',na:'臨',fn:'地沢臨',u:'坤',l:'兌',k:['接近','監督','大いなる近づき'],t:'徐々に大きくなる力の卦。良い時期が近づいている。積極的に物事に関わり、責任を持って臨むことで成功が得られる。',a:'好機が近づいている。積極的に。'},
+  {n:20,g:'䷓',na:'観',fn:'風地観',u:'巽',l:'坤',k:['観察','省察','手本'],t:'観察と手本の卦。じっくりと状況を見渡し、内省する時。自分の行動が他者の手本となるよう、誠実であることが求められる。',a:'観察し、省察し、手本となれ。'},
+  {n:21,g:'䷔',na:'噬嗑',fn:'火雷噬嗑',u:'離',l:'震',k:['断罪','障害除去','決断'],t:'障害を噛み砕く卦。問題を先送りにせず、毅然とした決断で障害を取り除く時。法と正義に従った厳格な処置が必要。',a:'問題を先送りせず、断固と対処せよ。'},
+  {n:22,g:'䷕',na:'賁',fn:'山火賁',u:'艮',l:'離',k:['装飾','美','文化','形式'],t:'美しさと文化の卦。外見を整え、文化的な洗練を追求する時。ただし形式だけでなく、内面の実質を伴わせることが大切。',a:'美しさと実質のバランスを。'},
+  {n:23,g:'䷖',na:'剥',fn:'山地剥',u:'艮',l:'坤',k:['崩壊','剥落','耐える','衰退'],t:'崩壊する状況の卦。悪い力が盛んで良いものが損なわれる時。無理に動かず、じっと耐えることが賢明。時は必ず変わる。',a:'無理に動かず、嵐が過ぎるのを待て。'},
+  {n:24,g:'䷗',na:'復',fn:'地雷復',u:'坤',l:'震',k:['回帰','復活','再生','回復'],t:'復帰と再生の卦。一陽が戻ってきた。新たな始まりのエネルギーが地の底から芽吹く。焦らず、自然の回帰の流れに任せよ。',a:'復活のエネルギーが来ている。'},
+  {n:25,g:'䷘',na:'無妄',fn:'天雷无妄',u:'乾',l:'震',k:['無心','純真','自然','誠実'],t:'自然と無心の卦。計算や作為なく、天の意志に従って純粋に行動する時。欲や思惑を捨て、あるがままの自分で進め。',a:'打算を捨て、自然体で行動せよ。'},
+  {n:26,g:'䷙',na:'大畜',fn:'山天大畜',u:'艮',l:'乾',k:['大いなる蓄積','抑制','知識','力の蓄積'],t:'大いなる力を蓄える卦。優れた力や知識を内に蓄積し、適切な時機を待って放出する。古人の智慧を学び、大きな事業の礎を作れ。',a:'力を蓄えよ。時を待つことが吉。'},
+  {n:27,g:'䷚',na:'頤',fn:'山雷頤',u:'艮',l:'震',k:['養い','食','育成','口'],t:'養いの卦。何を体に入れ、何を心に育てるかを慎重に選ぶ時。健全なものを摂取し、自己と他者の育成に心を配れ。',a:'心と体を正しく養う時。'},
+  {n:28,g:'䷛',na:'大過',fn:'沢風大過',u:'兌',l:'巽',k:['過重','非常事態','決断','極端'],t:'限界を超えた状況の卦。梁が重さに耐えられない。非常の事態には非常の手段が必要。果敢な行動と覚悟が求められる。',a:'大胆な決断と行動が必要な時。'},
+  {n:29,g:'䷜',na:'坎',fn:'坎為水',u:'坎',l:'坎',k:['危険','深淵','誠実','水'],t:'重なる危険の卦。深い淵に二度落ちる。しかし誠実な心を保ち続ければ、必ず出口が開ける。流れに逆らわず、着実に進め。',a:'危機の中でこそ誠実さを貫け。'},
+  {n:30,g:'䷝',na:'離',fn:'離為火',u:'離',l:'離',k:['明晰','依附','文明','火'],t:'光と依附の卦。太陽のように明るく輝きつつも、柔順に物に依って生きる。明晰な知性と外向きの徳が人を照らす。',a:'明るく輝き、周りを照らせ。'},
+  {n:31,g:'䷞',na:'咸',fn:'沢山咸',u:'兌',l:'艮',k:['感応','恋愛','相互作用','感情'],t:'感応と影響の卦。無心に感応し合うことで、天地・男女・人心が動く。空虚な心で相手の感情を受け入れることが大切。',a:'心を開き、感応し合う時。'},
+  {n:32,g:'䷟',na:'恒',fn:'雷風恒',u:'震',l:'巽',k:['持続','恒久','不変','継続'],t:'恒久と持続の卦。変化の中にも変わらぬ核心を持つことが大切。長く続くものは柔軟に変化しながら、本質を保つ。',a:'本質を守りながら柔軟に続けよ。'},
+  {n:33,g:'䷠',na:'遯',fn:'天山遯',u:'乾',l:'艮',k:['退却','遠避け','時機を待つ','撤退'],t:'退くことの卦。小人の勢いが増す時は、果断に退いて力を保つことが賢明。敗北ではなく、戦略的な後退である。',a:'果敢に退くことが真の強さ。'},
+  {n:34,g:'䷡',na:'大壮',fn:'雷天大壮',u:'震',l:'乾',k:['大いなる力','強盛','正義','勢い'],t:'力が充実する卦。大いなる力があるが、それゆえに慎重さが必要。力に任せて突進せず、正義と礼節に従って行動せよ。',a:'力はある。しかし慎重に用いよ。'},
+  {n:35,g:'䷢',na:'晋',fn:'火地晋',u:'離',l:'坤',k:['前進','昇進','明るい前途'],t:'明るく前進する卦。太陽が地平から昇るように、自らの徳を輝かせながら進む。明るい未来に向けて積極的に出よ。',a:'前途は明るい。積極的に進め。'},
+  {n:36,g:'䷣',na:'明夷',fn:'地火明夷',u:'坤',l:'離',k:['暗闇','逆境','内なる光','忍耐'],t:'光が傷つく時の卦。暗い時代・困難な状況でも、内なる光（智慧と徳）を守り続けることが大切。外には従い、内を守れ。',a:'暗闇でも内なる光を守れ。'},
+  {n:37,g:'䷤',na:'家人',fn:'風火家人',u:'巽',l:'離',k:['家族','役割','秩序','家庭'],t:'家族と家庭の卦。それぞれが役割を果たし、中心となる女性の徳が家を整える。小さな家庭秩序が社会の基礎となる。',a:'それぞれの役割を誠実に果たせ。'},
+  {n:38,g:'䷥',na:'睽',fn:'火沢睽',u:'離',l:'兌',k:['対立','乖離','小事に吉','差異'],t:'乖離と対立の卦。大きなことには不適だが、小さな事柄なら吉。違いの中にも共通点を見出す柔軟な視点が解決をもたらす。',a:'対立の中に共通点を探せ。'},
+  {n:39,g:'䷦',na:'蹇',fn:'水山蹇',u:'坎',l:'艮',k:['障害','苦難','内省','困難'],t:'障害と困難の卦。無理に進まず、方向を見直し内省する時。助けを求め、協力を得ることが障害を超える道となる。',a:'立ち止まり、内省し、助けを求めよ。'},
+  {n:40,g:'䷧',na:'解',fn:'雷水解',u:'震',l:'坎',k:['解放','解決','赦し','解消'],t:'困難からの解放の卦。嵐の後の晴れ間のように、問題が解決する時。この機に素早く行動し、遅滞なく状況を整理せよ。',a:'解放の時。素早く行動せよ。'},
+  {n:41,g:'䷨',na:'損',fn:'山沢損',u:'艮',l:'兌',k:['減少','犠牲','誠意','奉仕'],t:'減らすことの卦。自らを削って他に与えることで、長期的な利益が得られる。誠実な少量の供え物が、大きな形式より価値を持つ。',a:'誠実な犠牲が大きな利益を生む。'},
+  {n:42,g:'䷩',na:'益',fn:'風雷益',u:'巽',l:'震',k:['増加','利益','機を逃すな','成長'],t:'増益の卦。最も吉祥な時の一つ。善行と変革のための最高の時機。上の者は自らを省み減じ、下の者を益するべき時。',a:'増益の好機。善のために動け。'},
+  {n:43,g:'䷪',na:'夬',fn:'沢天夬',u:'兌',l:'乾',k:['決断','突破','警告','断行'],t:'決断と突破の卦。小人の力を一掃する時。しかし暴力ではなく、誠実な宣言と公正な方法で。危険を過小評価するな。',a:'断固と決断し、正しい方法で行え。'},
+  {n:44,g:'䷫',na:'姤',fn:'天風姤',u:'乾',l:'巽',k:['遭遇','誘惑','警戒','出会い'],t:'不意の出会いの卦。陰の力が忍び込む。魅力的な誘いに注意し、小さな悪を早期に取り除くことが大切。',a:'誘惑に注意。小さな問題を見逃すな。'},
+  {n:45,g:'䷬',na:'萃',fn:'沢地萃',u:'兌',l:'坤',k:['集合','集中','大きな供え','集結'],t:'人や力が集まる卦。人々を結集させるには、大きな目標と真摯な求心力が必要。集まった力を正しい方向に向けよ。',a:'力を一点に集中させる時。'},
+  {n:46,g:'䷭',na:'升',fn:'地風升',u:'坤',l:'巽',k:['上昇','着実な前進','努力','成長'],t:'上昇の卦。木が地中から芽吹くように、着実に上へ進む時。偉大な人に会うことが吉。南へ進むが吉（明るい方向）。',a:'着実に、しかし確実に上昇せよ。'},
+  {n:47,g:'䷮',na:'困',fn:'沢水困',u:'兌',l:'坎',k:['困窮','逆境','精神的強さ','忍耐'],t:'枯渇と困窮の卦。言葉が信じられない困難な状況。しかし君子は逆境にあっても運命を受け入れ、精神の力を保ち続ける。',a:'逆境でこそ精神の強さを示せ。'},
+  {n:48,g:'䷯',na:'井',fn:'水風井',u:'坎',l:'巽',k:['資源','井戸','不変の本質','共有'],t:'井戸の卦。社会の根本的資源。人々が来ては水を汲む。自分という井戸を清く保ち、皆に分かち与える存在であれ。',a:'清い心で社会に貢献し続けよ。'},
+  {n:49,g:'䷰',na:'革',fn:'沢火革',u:'兌',l:'離',k:['変革','革命','時代の転換','改革'],t:'革命と変革の卦。時代は変わる。確信をもって適切な時に変革を起こせば、人々はやがて信頼する。変化は避けられない。',a:'時が来た。大胆な変革を起こせ。'},
+  {n:50,g:'䷱',na:'鼎',fn:'火風鼎',u:'離',l:'巽',k:['文明','熟成','聖なる奉仕','変容'],t:'聖なる器・鼎の卦。古来のものを引き継ぎ、新しい文明の糧を煮炊きする。賢人を用い、文化と精神を高める時。',a:'文化と精神を高める時。'},
+  {n:51,g:'䷲',na:'震',fn:'震為雷',u:'震',l:'震',k:['雷','衝撃','覚醒','驚き'],t:'雷の衝撃の卦。予期せぬ衝撃が来る。しかし心ある者は笑いをもって危機を受け流す。衝撃の後に内省と覚醒が来る。',a:'衝撃を冷静に受け止め、内省せよ。'},
+  {n:52,g:'䷳',na:'艮',fn:'艮為山',u:'艮',l:'艮',k:['止まる','静止','瞑想','山'],t:'山のように静止する卦。動くべき時に動き、止まるべき時に完全に止まる。自己の内面と向き合う瞑想の時。',a:'完全に止まって内を見よ。'},
+  {n:53,g:'䷴',na:'漸',fn:'風山漸',u:'巽',l:'艮',k:['漸進','段階的発展','結婚','順序'],t:'漸進の卦。渡り鳥が段階を踏んで進むように、物事は順序を経て成就する。焦らず着実な歩みが最終的な成功をもたらす。',a:'急がず、段階を踏んで進め。'},
+  {n:54,g:'䷵',na:'帰妹',fn:'雷沢帰妹',u:'震',l:'兌',k:['副次的な立場','従属','慎重さ'],t:'正規でない立場の卦。自分の置かれた状況を受け入れ、その中で誠実に役割を果たすことが大切。焦りは禁物。',a:'与えられた立場で誠実に尽くせ。'},
+  {n:55,g:'䷶',na:'豊',fn:'雷火豊',u:'震',l:'離',k:['豊かさ','絶頂','惜しまず使え','最盛'],t:'豊かさと絶頂の卦。太陽が真昼に輝くように、力が最高潮に達する。この充実した時期を惜しまず活かし、大いに輝け。',a:'最盛期。惜しまず力を放て。'},
+  {n:56,g:'䷷',na:'旅',fn:'火山旅',u:'離',l:'艮',k:['旅','異境','慎重さ','流浪'],t:'旅人の卦。見知らぬ土地にあるように、立場が弱い時。謙虚で礼儀正しく、不要な争いを避けることが身を守る。',a:'異境では謙虚さと礼節を忘れるな。'},
+  {n:57,g:'䷸',na:'巽',fn:'巽為風',u:'巽',l:'巽',k:['柔順','浸透','忍耐','風'],t:'風のように柔軟に浸透する卦。力ずくではなく、繰り返し静かに働きかけることで目標に達する。方向性と目的を明確に。',a:'柔軟に、しかし一貫して浸透せよ。'},
+  {n:58,g:'䷹',na:'兌',fn:'兌為沢',u:'兌',l:'兌',k:['喜び','悦び','交流','喜悦'],t:'喜びと悦びの卦。真の喜びは内から来て、他者を養う。開かれた心で他者と交わり、共に喜ぶことが力の源となる。',a:'喜びを分かち合い、人と交われ。'},
+  {n:59,g:'䷺',na:'渙',fn:'風水渙',u:'巽',l:'坎',k:['解散','溶解','精神','拡散'],t:'分散と解放の卦。固まったものが解ける。凝り固まった自我や組織を解きほぐし、広大な流れに合流させる時。',a:'固執を手放し、大きな流れに合流せよ。'},
+  {n:60,g:'䷻',na:'節',fn:'水沢節',u:'坎',l:'兌',k:['節制','規律','適度','制限'],t:'節制の卦。厳しすぎず緩すぎない適度な規律と限界を設けることが大切。快楽と苦行の中道を行くことが長続きの秘訣。',a:'適度な節制が長続きの秘訣。'},
+  {n:61,g:'䷼',na:'中孚',fn:'風沢中孚',u:'巽',l:'兌',k:['誠信','内なる真実','感化','誠実'],t:'内なる誠実の卦。言葉ではなく、心からの誠実さが人の心を動かす。豚や魚にさえ届く真摯な心は、天をも動かす。',a:'真の誠実さが人を動かす。'},
+  {n:62,g:'䷽',na:'小過',fn:'雷山小過',u:'震',l:'艮',k:['少し過ぎる','謙虚','控えめ','小事'],t:'少し越えた状況の卦。大事より小事に適した時。鳥が低く飛ぶように、高望みせず謙虚に行動することで吉。',a:'大きすぎない目標で、謙虚に進め。'},
+  {n:63,g:'䷾',na:'既済',fn:'水火既済',u:'坎',l:'離',k:['完成','バランス','慢心禁止','達成'],t:'完成と達成の卦。全てが整った状態。しかし完成の後にこそ慢心が危険。細部に注意を払い続け、新たな変化に備えよ。',a:'達成の後こそ気を引き締めよ。'},
+  {n:64,g:'䷿',na:'未済',fn:'火水未済',u:'離',l:'坎',k:['未完成','移行期','慎重さ','可能性'],t:'未完成の卦。最後の一歩に最大の注意が必要。道はほぼ開けているが、今は慎重に。もう少しで完成という時こそ失敗しやすい。',a:'最後の一歩に最大の注意を払え。'},
+];
+
+// ===== 検索ロジック =====
+function search(q){
+  q=q.trim();
+  if(!q)return[];
+  if(q==='一覧'||q==='全卦'||q==='すべて')return HX;
+  // 番号
+  const num=parseInt(q);
+  if(!isNaN(num)&&num>=1&&num<=64)return HX.filter(h=>h.n===num);
+  // 完全一致・前方一致（正式名・略称）
+  const exact=HX.filter(h=>h.fn===q||h.na===q);
+  if(exact.length)return exact;
+  // 部分一致（正式名・略称・英語）
+  const partial=HX.filter(h=>
+    h.fn.includes(q)||h.na.includes(q)||
+    h.e.toLowerCase().includes(q.toLowerCase())||
+    h.k.some(k=>k.includes(q))||
+    h.u.includes(q)||h.l.includes(q)
+  );
+  return partial;
+}
+
+// ===== UI =====
+function onSearch(v){
+  const clear=document.getElementById('searchClear');
+  const icon=document.getElementById('searchIcon');
+  clear.style.display=v?'block':'none';
+  icon.style.display=v?'none':'block';
+  if(!v){showEmpty();return;}
+  const results=search(v);
+  if(v==='一覧'||v==='全卦'||v==='すべて'){showAllGrid();return;}
+  renderResults(results,v);
+}
+
+function doSearch(q){
+  const input=document.getElementById('searchInput');
+  input.value=q;
+  if(q==='一覧'){showAllGrid();document.getElementById('searchClear').style.display='block';document.getElementById('searchIcon').style.display='none';return;}
+  const results=search(q);
+  renderResults(results,q);
+  document.getElementById('searchClear').style.display='block';
+  document.getElementById('searchIcon').style.display='none';
+}
+
+function clearSearch(){
+  document.getElementById('searchInput').value='';
+  document.getElementById('searchClear').style.display='none';
+  document.getElementById('searchIcon').style.display='block';
+  showEmpty();
+}
+
+function showEmpty(){
+  document.getElementById('resultArea').innerHTML=`<div class="empty-state"><div class="empty-glyph">☯</div><div class="empty-text">卦の名前・番号・キーワードを入力してください<br>例：「山沢損」「11」「泰」「平和」「損」</div></div>`;
+}
+
+function renderResults(results,q){
+  const area=document.getElementById('resultArea');
+  if(!results.length){area.innerHTML=`<div class="not-found">「${q}」に該当する卦が見つかりませんでした</div>`;return;}
+  if(results.length===1){area.innerHTML=buildHexCard(results[0]);bindYaoToggles();return;}
+  if(results.length<=12){
+    area.innerHTML=`<div class="section-title">検索結果 ${results.length}件</div><div class="multi-results">${results.map(h=>`<div class="mini-card" onclick="showSingle(${h.n})"><div class="mc-glyph">${h.g}</div><div class="mc-num">${h.n}</div><div class="mc-name">${h.fn}</div></div>`).join('')}</div>`;
+  }else{
+    area.innerHTML=`<div class="section-title">検索結果 ${results.length}件</div><div class="all-grid">${results.map(h=>`<div class="grid-card" onclick="showSingle(${h.n})"><div class="gc-g">${h.g}</div><div class="gc-n">${h.n}</div><div class="gc-fn">${h.fn}</div></div>`).join('')}</div>`;
+  }
+}
+
+function showAllGrid(){
+  document.getElementById('resultArea').innerHTML=`<div class="section-title">六十四卦 一覧</div><div class="all-grid">${HX.map(h=>`<div class="grid-card" onclick="showSingle(${h.n})"><div class="gc-g">${h.g}</div><div class="gc-n">${h.n}</div><div class="gc-fn">${h.fn}</div></div>`).join('')}</div>`;
+}
+
+function showSingle(n){
+  const h=HX.find(x=>x.n===n);
+  document.getElementById('resultArea').innerHTML=`<button onclick="goBack()" style="background:none;border:none;color:var(--ink-dim);font-family:'Noto Serif JP',serif;font-size:12px;cursor:pointer;padding:0 0 16px 0;display:flex;align-items:center;gap:6px">← 戻る</button>`+buildHexCard(h);
+  bindYaoToggles();
+}
+
+function goBack(){
+  const v=document.getElementById('searchInput').value.trim();
+  if(!v){showEmpty();return;}
+  if(v==='一覧'){showAllGrid();return;}
+  const results=search(v);
+  renderResults(results,v);
+}
+
+function buildHexCard(h){
+  const lt=TRI[h.l];const ut=TRI[h.u];
+  // 爻辞
+  const yaoItems=Array.from({length:6},(_,i)=>{
+    const isYang=i<3?(lt?.l[i]===1):(ut?.l[i-3]===1);
+    const y=getYao(h.n,i,isYang);
+    return`<div class="yao-item"><div class="yao-header" onclick="tYao(this)"><span class="yao-pos">${['初','二','三','四','五','上'][i]}爻</span><div class="yao-seg">${isYang?'<div class="ys ys-y"></div>':'<div class="ys ys-n"></div><div style="width:4px"></div><div class="ys ys-n"></div>'}</div><span class="yao-name-text">${y.n}</span><span class="yao-meaning">${y.m}</span><span class="yao-arr">▼</span></div><div class="yao-body">${y.t}</div></div>`;
+  }).join('');
+
+  return`<div class="hex-card">
+    <div class="hex-top">
+      <div class="hex-glyph-wrap">
+        <span class="hex-glyph">${h.g}</span>
+        <div class="hex-trigrams">上：${h.u} ${ut?.g} / 下：${h.l} ${lt?.g}</div>
+      </div>
+      <div class="hex-info">
+        <div class="hex-num">第${h.n}卦</div>
+        <div class="hex-name-full">${h.fn}</div>
+        <div class="hex-name-short">${h.na}（${h.e}）</div>
+        <div class="hex-keywords">${h.k.map(k=>`<span class="kw">${k}</span>`).join('')}</div>
+      </div>
+    </div>
+    <div class="hex-structure">
+      <div class="tri-box"><div class="tri-label">下卦</div><span class="tri-glyph">${lt?.g}</span><div class="tri-name">${h.l}（${lt?.e}）</div><div class="tri-attr">${lt?.a}</div></div>
+      <div class="tri-box"><div class="tri-label">上卦</div><span class="tri-glyph">${ut?.g}</span><div class="tri-name">${h.u}（${ut?.e}）</div><div class="tri-attr">${ut?.a}</div></div>
+    </div>
+    <div class="hex-text">${h.t}</div>
+    <div class="hex-advice"><div class="hex-advice-label">指針</div>${h.a}</div>
+    <div class="yao-section">
+      <button class="yao-toggle" onclick="toggleYaoList(this)">
+        <span>爻辞（各爻の解説）を見る</span>
+        <span class="yao-toggle-arrow">▼</span>
+      </button>
+      <div class="yao-list">${yaoItems}</div>
+    </div>
+    <div class="save-area" id="save-${h.n}">
+      <button class="save-btn" onclick="openSaveForm(${h.n})">📝 この卦を記録する</button>
+    </div>
+  </div>`;
+}
+
+function toggleYaoList(btn){
+  const list=btn.nextElementSibling;
+  const arrow=btn.querySelector('.yao-toggle-arrow');
+  list.classList.toggle('open');
+  arrow.classList.toggle('open');
+  btn.querySelector('span').textContent=list.classList.contains('open')?'爻辞を閉じる':'爻辞（各爻の解説）を見る';
+}
+
+function tYao(h){
+  const b=h.nextElementSibling;
+  const a=h.querySelector('.yao-arr');
+  b.classList.toggle('open');
+  a.classList.toggle('open');
+}
+
+function bindYaoToggles(){}
+
+// ===== 記録保存 =====
+function getLog(){try{return JSON.parse(localStorage.getItem('eki_log')||'[]')}catch{return[]}}
+function saveLog(log){localStorage.setItem('eki_log',JSON.stringify(log))}
+
+function openSaveForm(n){
+  const h=HX.find(x=>x.n===n);
+  const now=new Date();
+  const dateStr=`${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  const el=document.getElementById(`save-${n}`);
+  el.innerHTML=`
+    <div class="save-date">📅 ${dateStr}</div>
+    <textarea class="save-textarea" id="memo-${n}" placeholder="占った状況やメモを入力...&#10;例：仕事の方向性について占った"></textarea>
+    <div class="save-actions">
+      <button class="btn-cancel" onclick="cancelSave(${n})">キャンセル</button>
+      <button class="btn-confirm" onclick="confirmSave(${n},'${dateStr}')">保存する</button>
+    </div>`;
+  document.getElementById(`memo-${n}`).focus();
+}
+
+function cancelSave(n){
+  document.getElementById(`save-${n}`).innerHTML=`<button class="save-btn" onclick="openSaveForm(${n})">📝 この卦を記録する</button>`;
+}
+
+function confirmSave(n,dateStr){
+  const memo=document.getElementById(`memo-${n}`).value.trim();
+  const h=HX.find(x=>x.n===n);
+  const log=getLog();
+  log.unshift({id:Date.now(),date:dateStr,hexNum:n,hexGlyph:h.g,hexName:h.fn,hexAdvice:h.a,memo:memo});
+  saveLog(log);
+  const el=document.getElementById(`save-${n}`);
+  el.innerHTML=`<div style="text-align:center;padding:12px;color:var(--gold);font-size:13px">✓ 記録しました</div>`;
+  setTimeout(()=>{el.innerHTML=`<button class="save-btn" onclick="openSaveForm(${n})">📝 この卦を記録する</button>`;},2000);
+}
+
+function showLog(){
+  const log=getLog();
+  const area=document.getElementById('resultArea');
+  if(!log.length){
+    area.innerHTML=`<div class="section-title">📖 占い記録</div><div class="log-empty">まだ記録がありません<br>卦を検索して「この卦を記録する」で保存できます</div>`;
+    return;
+  }
+  const entries=log.map(e=>`
+    <div class="log-entry">
+      <div class="log-date">📅 ${e.date}</div>
+      <div class="log-hex" onclick="showSingle(${e.hexNum})" style="cursor:pointer">
+        <span class="log-hex-glyph">${e.hexGlyph}</span>
+        <span class="log-hex-name">${e.hexName}</span>
+      </div>
+      <div style="font-size:12px;color:var(--ink-dim);margin-bottom:4px">指針：${e.hexAdvice}</div>
+      ${e.memo?`<div class="log-memo">${e.memo.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`:''}
+      <button class="log-delete" onclick="deleteLog(${e.id})">🗑 削除</button>
+      <div style="clear:both"></div>
+    </div>`).join('');
+  area.innerHTML=`<div class="section-title">📖 占い記録（${log.length}件）</div>${entries}`;
+}
+
+function deleteLog(id){
+  if(!confirm('この記録を削除しますか？'))return;
+  const log=getLog().filter(e=>e.id!==id);
+  saveLog(log);
+  showLog();
+}
+</script>
+</body>
+</html>
