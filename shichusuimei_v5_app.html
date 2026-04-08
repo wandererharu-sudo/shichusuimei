@@ -56,7 +56,35 @@ body { margin: 0; padding: 0; }
 <script id="__embedded_data__">window.__EMBEDDED__={"savedKantei": [{"id": 1773272895129, "savedAt": "2026/3/12", "name": "照井雅男", "bd": "1967-05-12", "gender": "male", "time": "", "dayPillar": "丙子", "group": "友達"}, {"id": 1773272761841, "savedAt": "2026/3/12", "name": "竹内佳典", "bd": "1967-06-22", "gender": "male", "time": "", "dayPillar": "丁巳", "group": "友達"}, {"id": 1773272724009, "savedAt": "2026/3/12", "name": "林　良春", "bd": "1967-12-14", "gender": "male", "time": "", "dayPillar": "壬子", "group": "友達"}, {"id": 1773272673066, "savedAt": "2026/3/12", "name": "林　良春", "bd": "1967-12-14", "gender": "male", "time": "", "dayPillar": "壬子", "group": "友達"}, {"id": 1773272244860, "savedAt": "2026/3/12", "name": "後藤雅仁", "bd": "1967-08-21", "gender": "male", "time": "", "dayPillar": "丁巳", "group": "友達"}, {"id": 1773271751943, "savedAt": "2026/3/12", "name": "平松俊彦", "bd": "1973-05-10", "gender": "male", "time": "", "dayPillar": "丙午"}], "savedFamilies": {}, "apiKey": ""};</script>
 </head>
 <body>
-<div id="root"></div>
+<div id="pw-screen" style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#f5ede0,#fdf8f2)">
+  <div style="background:#fff;padding:40px 32px;border-radius:16px;border:1px solid #d4b896;box-shadow:0 4px 20px rgba(0,0,0,0.08);text-align:center;max-width:320px">
+    <div style="font-size:24px;font-weight:900;color:#5a3a1a;margin-bottom:8px">四柱推命</div>
+    <div style="font-size:12px;color:#9a8a70;margin-bottom:24px">パスワードを入力してください</div>
+    <input id="pw-input" type="password" placeholder="パスワード" onkeydown="if(event.key==='Enter')checkPw()"
+      style="width:100%;padding:10px 14px;border-radius:8px;border:1px solid #c4a070;font-size:14px;box-sizing:border-box;background:#fdf5e8;color:#3a2e22">
+    <div id="pw-error" style="color:#c04040;font-size:11px;margin-top:6px;display:none">パスワードが違います</div>
+    <button onclick="checkPw()"
+      style="margin-top:16px;width:100%;padding:10px;border-radius:8px;background:linear-gradient(135deg,#c88a2a,#e8a030);border:none;color:#fff;font-size:14px;font-weight:700;cursor:pointer">
+      ログイン</button>
+  </div>
+</div>
+<div id="root" style="display:none"></div>
+<script>
+function checkPw(){
+  var pw=document.getElementById('pw-input').value;
+  if(pw==='Harukun-0120'){
+    document.getElementById('pw-screen').style.display='none';
+    document.getElementById('root').style.display='block';
+    sessionStorage.setItem('shichusuimei_auth','1');
+  } else {
+    document.getElementById('pw-error').style.display='block';
+  }
+}
+if(sessionStorage.getItem('shichusuimei_auth')==='1'){
+  document.getElementById('pw-screen').style.display='none';
+  document.getElementById('root').style.display='block';
+}
+</script>
 <script type="text/babel" data-presets="react">
 const { useState, useEffect, useRef } = React;
 
