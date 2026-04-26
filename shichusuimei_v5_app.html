@@ -4787,6 +4787,16 @@ function App() {
   const [formMonth, setFormMonth] = useState("6");
   const [formDay, setFormDay] = useState("10");
   const [formTime, setFormTime] = useState("06:45");
+  // URLパラメータから自動入力（みこ・他アプリからの連携用）
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("name"))   setFormName(params.get("name"));
+    if (params.get("year"))   setFormYear(params.get("year"));
+    if (params.get("month"))  setFormMonth(params.get("month"));
+    if (params.get("day"))    setFormDay(params.get("day"));
+    if (params.get("gender")) setFormGender(params.get("gender"));
+    if (params.get("time"))   setFormTime(params.get("time"));
+  }, []);
   const [result, setResult] = useState(null);
   const [submitted, setSubmitted] = useState(false);
   const [globalApiKey, setGlobalApiKey] = useState(()=>{
