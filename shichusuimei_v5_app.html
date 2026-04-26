@@ -4787,15 +4787,29 @@ function App() {
   const [formMonth, setFormMonth] = useState("6");
   const [formDay, setFormDay] = useState("10");
   const [formTime, setFormTime] = useState("06:45");
-  // URLパラメータから自動入力（みこ・他アプリからの連携用）
+  // URLパラメータから自動入力＋自動鑑定（みこ・他アプリからの連携用）
   React.useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("name"))   setFormName(params.get("name"));
-    if (params.get("year"))   setFormYear(params.get("year"));
-    if (params.get("month"))  setFormMonth(params.get("month"));
-    if (params.get("day"))    setFormDay(params.get("day"));
-    if (params.get("gender")) setFormGender(params.get("gender"));
-    if (params.get("time"))   setFormTime(params.get("time"));
+    const pName = params.get("name");
+    const pYear = params.get("year");
+    const pMonth = params.get("month");
+    const pDay = params.get("day");
+    const pGender = params.get("gender");
+    const pTime = params.get("time");
+    if (pName)   setFormName(pName);
+    if (pYear)   setFormYear(pYear);
+    if (pMonth)  setFormMonth(pMonth);
+    if (pDay)    setFormDay(pDay);
+    if (pGender) setFormGender(pGender);
+    if (pTime)   setFormTime(pTime);
+    // 必須パラメータが揃っていたら自動で鑑定実行
+    if (pName && pYear && pMonth && pDay && pGender) {
+      const bd = `${pYear}-${String(pMonth).padStart(2,"0")}-${String(pDay).padStart(2,"0")}`;
+      const r = calcAll(pName, bd, pTime || "06:45", pGender);
+      setResult(r);
+      setSubmitted(true);
+      setActiveTab("result");
+    }
   }, []);
   const [result, setResult] = useState(null);
   const [submitted, setSubmitted] = useState(false);
