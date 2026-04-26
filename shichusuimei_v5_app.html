@@ -75,12 +75,12 @@ function checkPw(){
   if(pw==='Harukun-0120'){
     document.getElementById('pw-screen').style.display='none';
     document.getElementById('root').style.display='block';
-    sessionStorage.setItem('shichusuimei_auth','1');
+    localStorage.setItem('shichusuimei_auth','1');
   } else {
     document.getElementById('pw-error').style.display='block';
   }
 }
-if(sessionStorage.getItem('shichusuimei_auth')==='1'){
+if(localStorage.getItem('shichusuimei_auth')==='1' || sessionStorage.getItem('shichusuimei_auth')==='1'){
   document.getElementById('pw-screen').style.display='none';
   document.getElementById('root').style.display='block';
 }
