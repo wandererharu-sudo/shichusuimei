@@ -4801,7 +4801,12 @@ function App() {
     if (pMonth)  setFormMonth(pMonth);
     if (pDay)    setFormDay(pDay);
     if (pGender) setFormGender(pGender);
-    if (pTime)   setFormTime(pTime);
+    if (pTime) {
+      setFormTime(pTime);
+    } else if (pName) {
+      // 他パラメータがあるのにtime指定なし → 時刻欄をクリア（時柱なし鑑定）
+      setFormTime("");
+    }
     // 必須パラメータが揃っていたら自動で鑑定実行（time未指定なら時柱なし）
     if (pName && pYear && pMonth && pDay && pGender) {
       const bd = `${pYear}-${String(pMonth).padStart(2,"0")}-${String(pDay).padStart(2,"0")}`;
