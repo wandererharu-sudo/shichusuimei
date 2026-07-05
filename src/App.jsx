@@ -5,7 +5,7 @@ const BRANCHES = ["子","丑","寅","卯","辰","巳","午","未","申","酉","�
 const STEM_EL = ["木","木","火","火","土","土","金","金","水","水"];
 const BRANCH_EL = ["水","土","木","木","土","火","火","土","金","金","土","水"];
 const STEM_YIN = [false,true,false,true,false,true,false,true,false,true];
-const ZOKAN = [["壬",null,null],["己","癸","辛"],["甲","丙","戊"],["乙",null,null],["戊","乙","癸"],["丙","庚","戊"],["丁","己",null],["己","丁","乙"],["庚","壬","戊"],["辛",null,null],["戊","辛","丁"],["壬","甲",null]];
+const ZOKAN = [["癸",null,null],["己","癸","辛"],["甲","丙","戊"],["乙",null,null],["戊","乙","癸"],["丙","庚","戊"],["丁","己",null],["己","丁","乙"],["庚","壬","戊"],["辛",null,null],["戊","辛","丁"],["壬","甲",null]];
 const SETSU = [[1,6],[2,4],[3,6],[4,5],[5,6],[6,6],[7,7],[8,7],[9,8],[10,8],[11,7],[12,7]];
 const JUNISHI_YO = ["長生","沐浴","冠帯","建禄","帝旺","衰","病","死","墓","絶","胎","養"];
 const JUNISHI_DESC = {
@@ -51,11 +51,10 @@ const KOUYEN = {0:6,1:6,2:2,3:7,4:4,5:4,6:10,7:9,8:0,9:8};
 const YOUJIN_BI = {0:3,1:7,2:6,3:5,4:6,5:5,6:9,7:8,8:0,9:11};
 const TENTOKU = {2:3,3:7,4:8,5:7,6:0,7:9,8:2,9:1,10:6,11:3,0:8,1:7};
 const TSUKITOKU = {2:2,6:2,10:2,8:8,0:8,4:8,11:0,3:0,7:0,5:6,9:6,1:6};
-const KUUBOU_TABLE = [[10,11],[8,9],[6,7],[4,5],[2,3],[0,1],[10,11],[8,9],[6,7],[4,5],[2,3],[0,1]];
-
 function getKuubou(si, bi) {
-  const jun = ((bi - si % 12) % 12 + 12) % 12;
-  return KUUBOU_TABLE[jun];
+  // 旬頭（甲○）の支 = bi - si。旬に含まれない残り2支が空亡
+  const jun = ((bi - si) % 12 + 12) % 12;
+  return [(jun + 10) % 12, (jun + 11) % 12];
 }
 const TSUHEN_DESC = {
   比肩:{kw:"独立・自立",txt:"意志が強く独立心旺盛。自分のペースを大切にし、一人で物事を成し遂げる力があります。"},
@@ -116,6 +115,7 @@ function calcHour(h, dSi) {
   return {stem:STEMS[si],branch:BRANCHES[bi],stemIdx:si,branchIdx:bi,stemEl:STEM_EL[si],branchEl:BRANCH_EL[bi]};
 }
 function calcDaiun(y, m, d, gender, mp) {
+  // 順逆判定は暦年の年干基準（はるさん指示 2026-07-05：立春補正は適用しない）
   const ySi=((y-4)%10+10)%10, yang=!STEM_YIN[ySi], fwd=(yang&&gender==="male")||(!yang&&gender==="female");
   const birth=new Date(y,m-1,d);
   let ns, nm=m, ny=y;
@@ -205,7 +205,8 @@ function calcShinSatsu(dSi, dBi, yBi, mBi, mSi, allBi, allSi) {
   return {byBi, bySi, summary: summaryStr};
 }
 function calcAll(name, bd, bt, gender) {
-  const [y,m,d]=bd.split("-").map(Number), h=bt?parseInt(bt):null;
+  // 時刻は "H:MM" 形式のみ有効（URL経由の不正値はNaN時柱を防ぐため無視）
+  const [y,m,d]=bd.split("-").map(Number), h=(bt&&/^\d{1,2}:\d{2}$/.test(bt))?parseInt(bt):null;
   const yp=calcYear(y,m,d), mp=calcMonth(y,m,d), dp=calcDay(y,m,d), hp=h!=null?calcHour(h,dp.stemIdx):null;
   const pillars={year:yp,month:mp,day:dp,hour:hp};
   const tsuhen={year:getTsuhen(dp.stemIdx,yp.stemIdx),month:getTsuhen(dp.stemIdx,mp.stemIdx),hour:hp?getTsuhen(dp.stemIdx,hp.stemIdx):null};
@@ -302,7 +303,7 @@ function ElBadge({el}) {
 // 保存リスト管理ユーティリティ
 // ═══════════════════════════════════════════════════════
 const SAVE_KEY = 'shichuPersons';
-function savedList()  { return JSON.parse(localStorage.getItem(SAVE_KEY)||'[]'); }
+function savedList()  { try { return JSON.parse(localStorage.getItem(SAVE_KEY)||'[]'); } catch { return []; } }
 function saveList(l)  { localStorage.setItem(SAVE_KEY, JSON.stringify(l)); }
 function savePerson(result) {
   const list = savedList();
@@ -416,11 +417,55 @@ function GogyouCompare({ persons, onClose }) {
   );
 }
 
+// ─── 家族運勢ボード（保存リスト全員の今年の運勢一覧） ─────────────
+function FamilyFortuneBoard({list}) {
+  const cy = new Date().getFullYear();
+  const ySi=((cy-4)%10+10)%10, yBi=((cy-4)%12+12)%12;
+  const rows = list.map(p=>{
+    try {
+      const r = calcAll(p.name, p.bd, p.bt||"", p.gender||"male");
+      const dSi = r.pillars.day.stemIdx;
+      const ku = getKuubou(dSi, r.pillars.day.branchIdx);
+      const du = r.daiun.list.filter(d=>d.startYear<=cy).slice(-1)[0] || r.daiun.seigo;
+      return {p, dSi, dayStem:r.pillars.day.stem, dayEl:r.pillars.day.stemEl, ku, du, age: cy - Number(p.bd.split("-")[0]) + 1};
+    } catch { return null; }
+  }).filter(Boolean);
+  const th = {border:"1px solid #c8b89a",padding:"4px 8px",fontSize:11,color:"#7a6a55",background:"#f0e8da",whiteSpace:"nowrap"};
+  const td = {border:"1px solid #c8b89a",padding:"5px 8px",fontSize:12,background:"#fdf8f2",textAlign:"center",verticalAlign:"middle"};
+  return (
+    <div style={{marginBottom:14}}>
+      <div style={{fontSize:13,fontWeight:700,color:"#5a3a1a",marginBottom:6}}>
+        ⛩ {cy}年（{STEMS[ySi]}{BRANCHES[yBi]}年）みんなの運勢
+      </div>
+      <div style={{overflowX:"auto"}}>
+        <table style={{borderCollapse:"collapse",width:"100%"}}>
+          <thead><tr><th style={th}>名前</th><th style={th}>数え</th><th style={th}>日主</th><th style={th}>今の大運</th><th style={th}>今年の通変星</th><th style={th}>今年の十二運</th><th style={th}>空亡</th></tr></thead>
+          <tbody>
+            {rows.map(({p,dSi,dayStem,dayEl,ku,du,age},i)=>(
+              <tr key={i}>
+                <td style={{...td,fontWeight:700,color:"#3a2e22",whiteSpace:"nowrap",textAlign:"left"}}>{p.name}<div style={{fontSize:9,color:"#9a8a70",fontWeight:400}}>{p.bd.replace(/-/g,"/")}</div></td>
+                <td style={{...td,fontSize:11,color:"#8a6a3a"}}>{age}歳</td>
+                <td style={td}><span style={{color:EC[dayEl]?.tx,fontSize:16,fontWeight:700}}>{dayStem}</span></td>
+                <td style={td}>{du?<><span style={{color:EC[STEM_EL[du.stemIdx]]?.tx,fontWeight:700,fontSize:14}}>{STEMS[du.stemIdx]}</span><span style={{position:"relative",display:"inline-block",color:EC[BRANCH_EL[du.branchIdx]]?.tx,fontWeight:700,fontSize:14,marginRight:8}}>{BRANCHES[du.branchIdx]}{ku.includes(du.branchIdx)&&<span style={{position:"absolute",top:-3,right:-9,fontSize:8,color:"#c06060",fontWeight:700}}>空</span>}</span><div style={{fontSize:9,color:"#8a7a60"}}>{getTsuhen(dSi,du.stemIdx)||"—"}</div></>:"—"}</td>
+                <td style={td}>{getTsuhen(dSi,ySi)||"—"}</td>
+                <td style={td}>{getJunishi(dSi,yBi)}</td>
+                <td style={td}>{ku.includes(yBi)?<span style={{fontSize:10,padding:"2px 8px",borderRadius:10,background:"#f8e0e0",color:"#c04040",fontWeight:700,border:"1px solid #e0a0a0"}}>空亡の年</span>:<span style={{color:"#b0a090"}}>—</span>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div style={{fontSize:10,color:"#8a7a60",marginTop:4}}>※ 通変星・十二運は各人の日干から見た{cy}年（{STEMS[ySi]}{BRANCHES[yBi]}）の星　／　地支右上の「空」・「空亡の年」＝空亡</div>
+    </div>
+  );
+}
+
 // ─── 保存リストタブ ──────────────────────────────────────
 function SavedListTab({ onLoad }) {
   const [list, setList]       = React.useState(savedList());
   const [selected, setSelected] = React.useState([]);
   const [comparing, setComparing] = React.useState(false);
+  const [showBoard, setShowBoard] = React.useState(true);
 
   // タブ表示・保存イベントのたびに最新データを読み込む
   React.useEffect(() => {
@@ -478,9 +523,11 @@ function SavedListTab({ onLoad }) {
       ) : (
         <>
           <div style={{marginBottom:10,display:"flex",gap:8,flexWrap:"wrap"}}>
+            <button onClick={()=>setShowBoard(v=>!v)} style={{background:showBoard?"#c88a2a":"#f5f0e8",border:"1px solid #c88a2a",color:showBoard?"#fff":"#8a5a1a",padding:"7px 16px",borderRadius:20,fontSize:12,cursor:"pointer",fontWeight:600}}>⛩ 今年の運勢ボード</button>
             <button onClick={doCompare} style={{background:"linear-gradient(135deg,#1a1410,#3d2a1a)",color:"#f5f0e8",border:"none",padding:"7px 16px",borderRadius:20,fontSize:12,cursor:"pointer",fontWeight:600}}>📊 五行比較（{selected.length}人選択中）</button>
             <button onClick={downloadCSV} style={{background:"#f5f0e8",border:"1px solid #c4a070",color:"#8a6010",padding:"7px 16px",borderRadius:20,fontSize:12,cursor:"pointer"}}>⬇ CSV保存</button>
           </div>
+          {showBoard && <FamilyFortuneBoard list={list}/>}
           <div style={{display:"flex",flexDirection:"column",gap:6}}>
             {list.map((p,i)=>(
               <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"10px 12px",background:selected.includes(i)?"#fdf0e0":"white",borderRadius:10,border:`1px solid ${selected.includes(i)?"#c4a070":"#e8e0d0"}`,cursor:"pointer"}} onClick={()=>toggle(i)}>
@@ -580,6 +627,7 @@ function GogyouCircle({ec, stemEc, branchEc, extraEc, gokaInfo, dayEl, scale=1})
 function MeishikiTable({data}) {
   const {pillars,tsuhen,junishi,zokan,shinSatsu} = data;
   const dp = pillars.day;
+  const kuubou = getKuubou(dp.stemIdx, dp.branchIdx);
   const cols = [
     {label:"時柱",p:pillars.hour,th:tsuhen.hour,ju:junishi.hour,zk:zokan.hour},
     {label:"日柱",p:pillars.day,th:null,ju:junishi.day,zk:zokan.day},
@@ -649,12 +697,12 @@ function MeishikiTable({data}) {
             const bc=EC[c.p.branchEl];
             const marks=(byBi[c.p.branchIdx]||[]).filter(m=>m!=="刑");
             const kou=marks.filter(m=>["貴","文","学","驛","将","禄","桃","紅"].includes(m));
-            const kyo=marks.filter(m=>["亡","劫","孤","空","元","弔","喪","羊"].includes(m));
+            const kyo=marks.filter(m=>["亡","劫","孤","元","弔","喪","羊"].includes(m));
             return <td key={c.label} style={{...CS,padding:"3px 2px"}}>
               <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:0}}>
                 <div style={{fontSize:9,color:"#c09020",letterSpacing:1,lineHeight:1.3,minHeight:13}}>{kou.length>0?kou.join(" "):""}</div>
                 <div style={{fontSize:8,color:"#c8b89a",lineHeight:1}}>―</div>
-                <span style={{fontSize:30,fontWeight:700,color:bc?.tx}}>{c.p.branch}</span>
+                <span style={{position:"relative",display:"inline-block",fontSize:30,fontWeight:700,color:bc?.tx}}>{c.p.branch}{kuubou.includes(c.p.branchIdx)&&<span style={{position:"absolute",top:-4,right:-14,fontSize:10,color:"#c06060",fontWeight:700}}>空</span>}</span>
                 <span style={{fontSize:12,color:bc?.tx}}>{c.p.branchEl}</span>
                 <div style={{fontSize:8,color:"#c8b89a",lineHeight:1}}>―</div>
                 <div style={{fontSize:9,color:"#b07010",letterSpacing:1,lineHeight:1.3,minHeight:13}}>{kyo.length>0?kyo.join(" "):""}</div>
@@ -683,6 +731,7 @@ function MeishikiTable({data}) {
 function DaiunTableH({daiun, dSi, pillars}) {
   const nowY = new Date().getFullYear();
   const meishikiBis = [pillars.year,pillars.month,pillars.day,pillars.hour].filter(Boolean).map(p=>p.branchIdx);
+  const kuubou = getKuubou(pillars.day.stemIdx, pillars.day.branchIdx);
   const rows = daiun.list;
   const colW = 72, labelW = 56;
   const isCurIdx = rows.findIndex((d,i)=>d.startYear<=nowY&&(!rows[i+1]||rows[i+1].startYear>nowY));
@@ -715,8 +764,8 @@ function DaiunTableH({daiun, dSi, pillars}) {
             </tr>
             <tr>
               <td style={hS}>地 支</td>
-              <td style={cellS(false)}><span style={{color:EC[BRANCH_EL[daiun.seigo.branchIdx]]?.tx,fontSize:18,fontWeight:700}}>{daiun.seigo.branch}</span></td>
-              {rows.map((d,i)=>{const bc=EC[d.branchEl]; const kankei=calcUnnenKankei(d.branchIdx,d.stemIdx,meishikiBis,dSi); return <td key={i} style={cellS(i===isCurIdx)}><span style={{color:bc?.tx,fontSize:20,fontWeight:700}}>{d.branch}</span><div style={{fontSize:9,color:bc?.tx,opacity:0.7}}>{d.branchEl}</div><div style={{display:"flex",flexWrap:"wrap",justifyContent:"center",gap:1,marginTop:2}}>{kankei.tags.map((t,k)=>{const col=t.includes("冲")?"#f07070":t.includes("合")?"#6ab0e8":t.includes("刑")?"#e0a040":"#a0c0a0";return <span key={k} style={{fontSize:7,padding:"0 2px",borderRadius:2,background:`${col}22`,color:col}}>{t}</span>;})}</div></td>;})}
+              <td style={cellS(false)}><span style={{position:"relative",display:"inline-block",color:EC[BRANCH_EL[daiun.seigo.branchIdx]]?.tx,fontSize:18,fontWeight:700}}>{daiun.seigo.branch}{kuubou.includes(daiun.seigo.branchIdx)&&<span style={{position:"absolute",top:-3,right:-11,fontSize:9,color:"#c06060",fontWeight:700}}>空</span>}</span></td>
+              {rows.map((d,i)=>{const bc=EC[d.branchEl]; const kankei=calcUnnenKankei(d.branchIdx,d.stemIdx,meishikiBis,dSi); return <td key={i} style={cellS(i===isCurIdx)}><span style={{position:"relative",display:"inline-block",color:bc?.tx,fontSize:20,fontWeight:700}}>{d.branch}{kuubou.includes(d.branchIdx)&&<span style={{position:"absolute",top:-3,right:-11,fontSize:9,color:"#c06060",fontWeight:700}}>空</span>}</span><div style={{fontSize:9,color:bc?.tx,opacity:0.7}}>{d.branchEl}</div><div style={{display:"flex",flexWrap:"wrap",justifyContent:"center",gap:1,marginTop:2}}>{kankei.tags.map((t,k)=>{const col=t.includes("冲")?"#f07070":t.includes("合")?"#6ab0e8":t.includes("刑")?"#e0a040":"#a0c0a0";return <span key={k} style={{fontSize:7,padding:"0 2px",borderRadius:2,background:`${col}22`,color:col}}>{t}</span>;})}</div></td>;})}
             </tr>
             <tr>
               <td style={hS}>十二運</td>
@@ -734,6 +783,7 @@ function DaiunTableH({daiun, dSi, pillars}) {
 function RyunenTableH({ryunen, pillars, dSi, birthYear}) {
   const nowY = new Date().getFullYear();
   const meishikiBis = [pillars.year,pillars.month,pillars.day,pillars.hour].filter(Boolean).map(p=>p.branchIdx);
+  const kuubou = getKuubou(pillars.day.stemIdx, pillars.day.branchIdx);
   const isCurIdx = ryunen.findIndex(r=>r.year===nowY);
   const cellS = (isCur,isPast) => ({border:"1px solid #c8b89a",padding:"4px 2px",textAlign:"center",fontSize:12,background:isCur?"#e8d4b8":isPast?"#faf5ef":"#fdf8f2",opacity:isPast?0.6:1,minWidth:60});
   const hS = {border:"1px solid #c8b89a",padding:"4px 6px",textAlign:"right",fontSize:11,color:"#7a6a55",background:"#f0e8da",whiteSpace:"nowrap"};
@@ -745,7 +795,7 @@ function RyunenTableH({ryunen, pillars, dSi, birthYear}) {
           <tr><td style={hS}>西 暦</td>{ryunen.map((r,i)=><td key={i} style={{...cellS(i===isCurIdx,r.year<nowY),fontWeight:i===isCurIdx?700:400,color:i===isCurIdx?"#5a3010":"#8a7a60"}}>{r.year}{i===isCurIdx&&<span style={{display:"block",fontSize:8,color:"#7a4a1a"}}>▶</span>}</td>)}</tr>
           <tr><td style={hS}>天 干</td>{ryunen.map((r,i)=>{const sc=EC[r.stemEl]; return <td key={i} style={cellS(i===isCurIdx,r.year<nowY)}><span style={{color:sc?.tx,fontSize:18,fontWeight:700}}>{r.stem}</span><div style={{fontSize:9,color:sc?.tx,opacity:0.7}}>{r.stemEl}</div></td>;})}</tr>
           <tr><td style={hS}>通変星</td>{ryunen.map((r,i)=><td key={i} style={{...cellS(i===isCurIdx,r.year<nowY),fontSize:11}}>{r.tsuhen||"—"}</td>)}</tr>
-          <tr><td style={hS}>地 支</td>{ryunen.map((r,i)=>{const bc=EC[r.branchEl]; const kankei=calcUnnenKankei(r.branchIdx,r.stemIdx,meishikiBis,dSi); return <td key={i} style={cellS(i===isCurIdx,r.year<nowY)}><span style={{color:bc?.tx,fontSize:18,fontWeight:700}}>{r.branch}</span><div style={{fontSize:9,color:bc?.tx,opacity:0.7}}>{r.branchEl}</div><div style={{display:"flex",flexWrap:"wrap",justifyContent:"center",gap:1,marginTop:2}}>{kankei.tags.map((t,k)=>{const col=t.includes("冲")?"#f07070":t.includes("合")?"#6ab0e8":t.includes("刑")?"#e0a040":"#a0c0a0"; return <span key={k} style={{fontSize:7,padding:"0 2px",borderRadius:2,background:`${col}22`,color:col}}>{t}</span>;})}</div></td>;})}</tr>
+          <tr><td style={hS}>地 支</td>{ryunen.map((r,i)=>{const bc=EC[r.branchEl]; const kankei=calcUnnenKankei(r.branchIdx,r.stemIdx,meishikiBis,dSi); return <td key={i} style={cellS(i===isCurIdx,r.year<nowY)}><span style={{position:"relative",display:"inline-block",color:bc?.tx,fontSize:18,fontWeight:700}}>{r.branch}{kuubou.includes(r.branchIdx)&&<span style={{position:"absolute",top:-3,right:-11,fontSize:9,color:"#c06060",fontWeight:700}}>空</span>}</span><div style={{fontSize:9,color:bc?.tx,opacity:0.7}}>{r.branchEl}</div><div style={{display:"flex",flexWrap:"wrap",justifyContent:"center",gap:1,marginTop:2}}>{kankei.tags.map((t,k)=>{const col=t.includes("冲")?"#f07070":t.includes("合")?"#6ab0e8":t.includes("刑")?"#e0a040":"#a0c0a0"; return <span key={k} style={{fontSize:7,padding:"0 2px",borderRadius:2,background:`${col}22`,color:col}}>{t}</span>;})}</div></td>;})}</tr>
           <tr><td style={hS}>十二運</td>{ryunen.map((r,i)=>{const ju=getJunishi(dSi,r.branchIdx); return <td key={i} style={{...cellS(i===isCurIdx,r.year<nowY),fontSize:11}}>{ju}</td>;})}</tr>
         </tbody>
       </table>
@@ -849,13 +899,76 @@ function FamilyMeishikiModal({member, memberResult, targetYear, onClose}) {
           {/* 指定年の五行バランス */}
           {targetYear && (
             <Section title={`▌ ${targetYear}年の五行バランス（命式＋大運＋年運）`}>
-              <GogyouCircle ec={combinedEc} stemEc={combinedStemEc} branchEc={combinedBranchEc} extraEc={{木:0,火:0,土:0,金:0,水:0}} dayEl={mr.pillars.day.stemEl}
-                gokaInfo={(()=>{const GCOLS={木:"#7ecf6e",火:"#f07070",土:"#d4a84b",金:"#c0c8e0",水:"#6ab0e8"};const info=[];Object.entries(mr.gokaMoveStem||{}).forEach(([i,{from,to}])=>info.push({color:GCOLS[from],toEl:to,type:"stem"}));Object.entries(mr.gokaMoveBranch||{}).forEach(([i,{from,to}])=>info.push({color:GCOLS[from],toEl:to,type:"branch"}));return info;})()}/>
+              <GogyouCircle ec={combinedEc} stemEc={combinedStemEc} branchEc={combinedBranchEc} extraEc={{木:0,火:0,土:0,金:0,水:0}} dayEl={memberResult.pillars.day.stemEl}
+                gokaInfo={(()=>{const GCOLS={木:"#7ecf6e",火:"#f07070",土:"#d4a84b",金:"#c0c8e0",水:"#6ab0e8"};const info=[];Object.entries(memberResult.gokaMoveStem||{}).forEach(([i,{from,to}])=>info.push({color:GCOLS[from],toEl:to,type:"stem"}));Object.entries(memberResult.gokaMoveBranch||{}).forEach(([i,{from,to}])=>info.push({color:GCOLS[from],toEl:to,type:"branch"}));return info;})()}/>
               <div style={{fontSize:10,color:"#8a7a60",marginTop:4}}>命式 ＋ {curDaiun?.stem}{curDaiun?.branch}大運 ＋ {curRyunen?.stem}{curRyunen?.branch}年運</div>
             </Section>
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── 人生振り返り年表（メモ×大運×年運を重ねる） ────────────────────
+function LifeTimelineTable({memos, birthYear, mainResult}) {
+  if (!mainResult) return <div style={{fontSize:11,color:"#b0a090",padding:10}}>命式データがありません。</div>;
+  const dSi = mainResult.pillars.day.stemIdx;
+  const kuubou = getKuubou(dSi, mainResult.pillars.day.branchIdx);
+  const daiunList = mainResult.daiun?.list || [];
+  const seigo = mainResult.daiun?.seigo;
+  const daiunOf = (year) => { let cur=null; for (const d of daiunList){ if(d.startYear<=year) cur=d; else break; } return cur; };
+  const years = [...new Set(memos.map(m=>m.year))].sort((a,b)=>a-b);
+  const th = {border:"1px solid #c8b89a",padding:"4px 8px",fontSize:11,color:"#7a6a55",background:"#f0e8da",whiteSpace:"nowrap"};
+  const td = {border:"1px solid #c8b89a",padding:"5px 8px",fontSize:12,background:"#fdf8f2",verticalAlign:"top",textAlign:"center"};
+  const kanshi = (si,bi) => (
+    <span style={{whiteSpace:"nowrap"}}>
+      <span style={{color:EC[STEM_EL[si]]?.tx,fontSize:15,fontWeight:700}}>{STEMS[si]}</span>
+      <span style={{position:"relative",display:"inline-block",color:EC[BRANCH_EL[bi]]?.tx,fontSize:15,fontWeight:700,marginRight:8}}>{BRANCHES[bi]}{kuubou.includes(bi)&&<span style={{position:"absolute",top:-3,right:-9,fontSize:8,color:"#c06060",fontWeight:700}}>空</span>}</span>
+    </span>
+  );
+  let prevDaiunKey = null;
+  return (
+    <div>
+      <div style={{overflowX:"auto"}}>
+        <table style={{borderCollapse:"collapse",width:"100%"}}>
+          <thead><tr><th style={th}>西暦</th><th style={th}>数え</th><th style={th}>大運</th><th style={th}>年運</th><th style={{...th,textAlign:"left"}}>出来事</th></tr></thead>
+          <tbody>
+            {years.map(year=>{
+              const si=((year-4)%10+10)%10, bi=((year-4)%12+12)%12;
+              const du=daiunOf(year);
+              const duKey=du?du.startYear:"seigo";
+              const changed=prevDaiunKey!==null&&duKey!==prevDaiunKey;
+              prevDaiunKey=duKey;
+              const tdR = changed ? {...td,borderTop:"3px double #c88a2a"} : td;
+              const list=memos.filter(m=>m.year===year);
+              return (
+                <tr key={year}>
+                  <td style={{...tdR,fontWeight:700,color:"#5a3a1a"}}>{year}</td>
+                  <td style={{...tdR,fontSize:11,color:"#8a6a3a"}}>{year-birthYear+1}歳</td>
+                  <td style={tdR}>
+                    {changed&&<div style={{fontSize:8,color:"#c88a2a",fontWeight:700,marginBottom:1}}>▲大運替</div>}
+                    {du ? <>{kanshi(du.stemIdx,du.branchIdx)}<div style={{fontSize:9,color:"#8a7a60"}}>{getTsuhen(dSi,du.stemIdx)||"—"}</div></>
+                        : seigo ? <>{kanshi(seigo.stemIdx,seigo.branchIdx)}<div style={{fontSize:9,color:"#8a7a60"}}>生後</div></> : "—"}
+                  </td>
+                  <td style={tdR}>
+                    {kanshi(si,bi)}
+                    <div style={{fontSize:9,color:"#8a7a60"}}>{getTsuhen(dSi,si)||"—"}・{getJunishi(dSi,bi)}</div>
+                  </td>
+                  <td style={{...tdR,textAlign:"left"}}>
+                    {list.map((m,i)=>(
+                      <div key={i} style={{fontSize:12,color:"#3a2e22",lineHeight:1.7}}>
+                        {m.date&&<span style={{fontSize:10,color:"#9a8a70",marginRight:6}}>{m.date}</span>}{m.text}
+                      </div>
+                    ))}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div style={{fontSize:10,color:"#8a7a60",marginTop:6}}>※ 地支右上の「空」＝空亡の年　／　二重線・▲大運替＝前のメモ年から大運が替わった行　／　年運の下段は通変星・十二運</div>
     </div>
   );
 }
@@ -880,6 +993,7 @@ function AgeMemoSection({birthYear, bd, mainResult}) {
   const [editYear, setEditYear] = useState("");
   const [editAge, setEditAge]   = useState("");
   const [importPreview, setImportPreview] = useState(null); // インポートプレビュー
+  const [showTimeline, setShowTimeline] = useState(false);  // 年表ビュー切替
 
   // ── 家族状態 ────────────────────────────────────────
   const [children, setChildren] = useState([]);
@@ -891,16 +1005,14 @@ function AgeMemoSection({birthYear, bd, mainResult}) {
   const [editChildIdx, setEditChildIdx]   = useState(null);
   const [editChild, setEditChild]         = useState(null);
 
-  // ── window.storage からの初回ロード ───────────────────────────
+  // ── localStorage からの初回ロード ───────────────────────────
   React.useEffect(() => {
-    (async () => {
-      try { const ms = await window.storage.get(storageKey); if(ms) setMemos(JSON.parse(ms.value)); } catch {}
-      try { const cs = await window.storage.get(childrenKey); if(cs) setChildren(JSON.parse(cs.value)); } catch {}
-    })();
+    try { const ms = localStorage.getItem(storageKey); if(ms) setMemos(JSON.parse(ms)); } catch { /* 破損データは無視 */ }
+    try { const cs = localStorage.getItem(childrenKey); if(cs) setChildren(JSON.parse(cs)); } catch { /* 破損データは無視 */ }
   }, [storageKey, childrenKey]);
 
-  const saveMemos    = (m) => { setMemos(m); window.storage.set(storageKey, JSON.stringify(m)).catch(()=>{}); };
-  const saveChildren = (c) => { setChildren(c); window.storage.set(childrenKey, JSON.stringify(c)).catch(()=>{}); };
+  const saveMemos    = (m) => { setMemos(m); try { localStorage.setItem(storageKey, JSON.stringify(m)); } catch { /* 容量超過等 */ } };
+  const saveChildren = (c) => { setChildren(c); try { localStorage.setItem(childrenKey, JSON.stringify(c)); } catch { /* 容量超過等 */ } };
 
   const addMemo = () => {
     const year = parseInt(inputYear);
@@ -1154,6 +1266,7 @@ function AgeMemoSection({birthYear, bd, mainResult}) {
           💾 生年月日ごとにブラウザ保存
         </div>
         <div style={{display:"flex",gap:6,alignItems:"center"}}>
+          {memos.length>0&&<button onClick={()=>setShowTimeline(v=>!v)} style={{padding:"4px 10px",borderRadius:6,background:showTimeline?"#c88a2a":"transparent",border:"1px solid #c88a2a",color:showTimeline?"#fff":"#8a5a1a",fontSize:10,cursor:"pointer",fontWeight:700}}>{showTimeline?"📝 メモ一覧に戻る":"📜 年表で見る"}</button>}
           <button onClick={handleResort} style={{padding:"4px 10px",borderRadius:6,background:"transparent",border:"1px solid #c0a080",color:"#705030",fontSize:10,cursor:"pointer"}}>🔃 日付順に並び替え</button>
           <button onClick={handleExport} style={{padding:"4px 10px",borderRadius:6,background:"transparent",border:"1px solid #a0c080",color:"#507030",fontSize:10,cursor:"pointer"}}>📥 エクスポート(.json)</button>
           <button onClick={()=>setShowImportBox(v=>!v)}
@@ -1212,6 +1325,8 @@ function AgeMemoSection({birthYear, bd, mainResult}) {
         <div style={{fontSize:11,color:"#b0a090",padding:"10px",textAlign:"center",background:"#fdf5e8",borderRadius:8,border:"1px dashed #d4b896"}}>
           実年齢とメモを入力して「追加」してください
         </div>
+      ) : showTimeline ? (
+        <LifeTimelineTable memos={memos} birthYear={birthYear} mainResult={mainResult}/>
       ) : (
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
           {[...new Set(memos.map(m=>m.year))].sort((a,b)=>a-b).map(year=>(
@@ -1603,14 +1718,14 @@ function AgeMeishikiGogyou({result}) {
 }
 
 function SeikakuSection({stem, seikaku, tsuhen, junishi}) {
+  const [showTsuhen, setShowTsuhen] = useState(false);
+  const [showJunishi, setShowJunishi] = useState(false);
   const raw = (seikaku||SEIKAKU)[stem];
   if (!raw) return null;
   const data = {kw: raw.kw || raw.keyword || "", intro: raw.intro || "", p: raw.p || raw.paragraphs || []};
   const c = EC[STEM_EL[STEMS.indexOf(stem)]];
   const thList = [...new Set([tsuhen?.month, tsuhen?.year, tsuhen?.hour].filter(Boolean))];
   const juList = [...new Set([junishi?.year, junishi?.month, junishi?.day, junishi?.hour].filter(Boolean))];
-  const [showTsuhen, setShowTsuhen] = useState(false);
-  const [showJunishi, setShowJunishi] = useState(false);
   return (
     <div>
       {/* 日干ヘッダー */}
@@ -3536,12 +3651,12 @@ function App() {
     }
   },[]);
   // フォーム状態
-  const [formName, setFormName] = useState("Ha");
+  const [formName, setFormName] = useState("");
   const [formGender, setFormGender] = useState("male");
-  const [formYear, setFormYear] = useState("1967");
-  const [formMonth, setFormMonth] = useState("6");
-  const [formDay, setFormDay] = useState("10");
-  const [formTime, setFormTime] = useState("06:45");
+  const [formYear, setFormYear] = useState("2000");
+  const [formMonth, setFormMonth] = useState("1");
+  const [formDay, setFormDay] = useState("1");
+  const [formTime, setFormTime] = useState("");
 
   // URLパラメータから自動入力（朝のルーティンアプリからの連携）
   React.useEffect(() => {
@@ -3600,6 +3715,12 @@ function App() {
   const dayOptions = Array.from({length:31},(_,i)=>i+1);
 
   const handleKantei = () => {
+    const y=Number(formYear), m=Number(formMonth), d=Number(formDay);
+    const dt = new Date(y, m-1, d);
+    if (!y || dt.getFullYear()!==y || dt.getMonth()!==m-1 || dt.getDate()!==d) {
+      alert(`${formYear}年${formMonth}月${formDay}日は存在しない日付です。日付をご確認ください。`);
+      return;
+    }
     const bd = `${formYear}-${String(formMonth).padStart(2,"0")}-${String(formDay).padStart(2,"0")}`;
     const r = calcAll(formName||"名無し", bd, formTime, formGender);
     setResult(r);
@@ -3848,6 +3969,24 @@ function App() {
             {activeTab==="mbti" && (
               <div style={{border:"1px solid #c4a070",borderTop:"none",borderRadius:"0 8px 8px 8px",padding:"4px 0",background:"transparent"}}>
                 <MbtiTab result={result} mbtiInitial={getMbti(result.name, result.bd)}/>
+              </div>
+            )}
+
+            {/* ── 保存リストタブ ── */}
+            {activeTab==="savedlist" && (
+              <div style={{border:"1px solid #c4a070",borderTop:"none",borderRadius:"0 8px 8px 8px",padding:"16px",background:"rgba(253,248,242,0.95)"}}>
+                <SavedListTab onLoad={(p)=>{
+                  const [py,pm,pd] = p.bd.split("-");
+                  setFormName(p.name);
+                  setFormGender(p.gender||"male");
+                  setFormYear(String(Number(py)));
+                  setFormMonth(String(Number(pm)));
+                  setFormDay(String(Number(pd)));
+                  setFormTime(p.bt||"");
+                  setResult(calcAll(p.name, p.bd, p.bt||"", p.gender||"male"));
+                  setSubmitted(true);
+                  setActiveTab("result");
+                }}/>
               </div>
             )}
 
