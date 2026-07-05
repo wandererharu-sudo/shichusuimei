@@ -192,7 +192,7 @@ function calcShinSatsu(dSi, dBi, yBi, mBi, mSi, allBi, allSi) {
   });
   Object.entries(keiResult).forEach(([bi,marks])=>marks.forEach(m=>add(Number(bi),m)));
   const summary = {};
-  const LABEL={貴:"天乙貴人",文:"文昌",学:"学堂",驛:"驛馬",禄:"禄神",将:"将星",桃:"桃花",紅:"紅艶",羊:"羊刃",弔:"弔客",喪:"喪門",孤:"孤辰",亡:"亡神",劫:"劫煞",空:"空亡",元:"元辰",刑:"刑"};
+  const LABEL={貴:"天乙貴人",文:"文昌",学:"学堂",驛:"驛馬",禄:"禄神",将:"将星",桃:"桃花",紅:"紅艶",羊:"羊刃",弔:"弔客",喪:"喪門",孤:"孤辰",寡:"寡宿",亡:"亡神",劫:"劫煞",空:"空亡",元:"元辰",刑:"刑"};
   Object.entries(byBi).forEach(([bi,marks])=>{
     marks.forEach(m=>{
       const k=LABEL[m]||m;
@@ -636,6 +636,8 @@ function MeishikiTable({data}) {
   ];
   const byBi = shinSatsu?.byBi || {};
   const bySi = shinSatsu?.bySi || {};
+  // bySi の添字は calcAll の allSi＝[年,月,日,時] 順（cols の並びとは逆）
+  const SI_IDX = {"年柱":0,"月柱":1,"日柱":2,"時柱":3};
   const ADJACENT_PAIRS = [[0,1],[1,2],[2,3]];
   const stemNote = {}, branchNote = {};
   cols.filter(c=>c.p).forEach((a,i,arr)=>{
@@ -672,14 +674,14 @@ function MeishikiTable({data}) {
       if(hasSangou){branchNote[c.label]=branchNote[c.label].filter(n=>!n.includes("六合"));}
     }
   });
-  cols.forEach((c,i)=>{if(bySi[i]){bySi[i].forEach(m=>{stemNote[c.label]=[...(stemNote[c.label]||[]),m];});}});
+  cols.forEach(c=>{const si=bySi[SI_IDX[c.label]];if(si){si.forEach(m=>{stemNote[c.label]=[...(stemNote[c.label]||[]),m];});}});
   const nbadge=(t,col)=><span style={{display:"inline-block",fontSize:8,padding:"1px 4px",borderRadius:3,border:`1px solid ${col}44`,background:`${col}18`,color:col,margin:"1px",lineHeight:1.4}}>{t}</span>;
   return (
     <div style={{overflowX:"auto"}}>
       <table style={{borderCollapse:"collapse",width:"100%"}}>
         <thead><tr><td style={HS}></td>{cols.map(c=><th key={c.label} style={HS}>{c.label}</th>)}</tr></thead>
         <tbody>
-          <tr><td style={HS}>天干</td>{cols.map((c,ci)=>{ if(!c.p) return <td key={c.label} style={{...CS,color:"#b0a090"}}>—</td>; const sc=EC[c.p.stemEl]; const smarks=bySi[ci]||[]; const isDay=ci===1; return <td key={c.label} style={{...CS,padding:"4px 3px",position:"relative",background:isDay?"#fdf0e0":""}}><div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:1}}>{smarks.length>0&&<span style={{fontSize:8,color:"#a07010",fontWeight:700}}>{smarks.join("")}</span>}<span style={{fontSize:30,fontWeight:700,color:sc?.tx,writingMode:isDay?"vertical-rl":"horizontal-tb",textOrientation:isDay?"upright":"mixed",letterSpacing:isDay?4:0}}>{c.p.stem}</span><span style={{fontSize:12,color:sc?.tx}}>{c.p.stemEl}</span></div></td>; })}</tr>
+          <tr><td style={HS}>天干</td>{cols.map((c,ci)=>{ if(!c.p) return <td key={c.label} style={{...CS,color:"#b0a090"}}>—</td>; const sc=EC[c.p.stemEl]; const smarks=bySi[SI_IDX[c.label]]||[]; const isDay=ci===1; return <td key={c.label} style={{...CS,padding:"4px 3px",position:"relative",background:isDay?"#fdf0e0":""}}><div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:1}}>{smarks.length>0&&<span style={{fontSize:8,color:"#a07010",fontWeight:700}}>{smarks.join("")}</span>}<span style={{fontSize:30,fontWeight:700,color:sc?.tx,writingMode:isDay?"vertical-rl":"horizontal-tb",textOrientation:isDay?"upright":"mixed",letterSpacing:isDay?4:0}}>{c.p.stem}</span><span style={{fontSize:12,color:sc?.tx}}>{c.p.stemEl}</span></div></td>; })}</tr>
           <tr><td style={HS}>通変星</td>{cols.map((c,i)=>{
             const sn=stemNote[c.label]||[];
             const isDayMain=i===1;
@@ -1002,6 +1004,7 @@ function AgeMemoSection({birthYear, bd, mainResult}) {
   const [newChildMonth, setNewChildMonth] = useState("1");
   const [newChildDay, setNewChildDay]     = useState("1");
   const [newChildTime, setNewChildTime]   = useState("");
+  const [newChildGender, setNewChildGender] = useState("male");
   const [editChildIdx, setEditChildIdx]   = useState(null);
   const [editChild, setEditChild]         = useState(null);
 
@@ -1165,8 +1168,8 @@ function AgeMemoSection({birthYear, bd, mainResult}) {
   // ── 家族操作 ────────────────────────────────────────
   const addChild = () => {
     if(!newChildName.trim()) return;
-    saveChildren([...children,{name:newChildName.trim(),birthYear:parseInt(newChildYear),birthMonth:parseInt(newChildMonth),birthDay:parseInt(newChildDay),birthTime:newChildTime||""}]);
-    setNewChildName(""); setNewChildYear(String(new Date().getFullYear()-10)); setNewChildMonth("1"); setNewChildDay("1"); setNewChildTime("");
+    saveChildren([...children,{name:newChildName.trim(),birthYear:parseInt(newChildYear),birthMonth:parseInt(newChildMonth),birthDay:parseInt(newChildDay),birthTime:newChildTime||"",gender:newChildGender}]);
+    setNewChildName(""); setNewChildYear(String(new Date().getFullYear()-10)); setNewChildMonth("1"); setNewChildDay("1"); setNewChildTime(""); setNewChildGender("male");
   };
   const deleteChild = (i) => saveChildren(children.filter((_,idx)=>idx!==i));
   const startEditChild = (i) => { setEditChildIdx(i); setEditChild({...children[i]}); };
@@ -1190,7 +1193,7 @@ function AgeMemoSection({birthYear, bd, mainResult}) {
   };
 
   const calcFamilyResult = (c) => {
-    try { return calcAll(c.name||"", `${c.birthYear}-${String(c.birthMonth||1).padStart(2,"0")}-${String(c.birthDay||1).padStart(2,"0")}`, c.birthTime||"00:00", "male"); }
+    try { return calcAll(c.name||"", `${c.birthYear}-${String(c.birthMonth||1).padStart(2,"0")}-${String(c.birthDay||1).padStart(2,"0")}`, c.birthTime||"", c.gender||"male"); }
     catch { return null; }
   };
 
@@ -1232,6 +1235,10 @@ function AgeMemoSection({birthYear, bd, mainResult}) {
             </select>
             <input type="time" value={newChildTime} onChange={e=>setNewChildTime(e.target.value)}
               placeholder="時間(任意)" style={{padding:"4px",borderRadius:5,border:"1px solid #a0c080",fontSize:11,width:90}}/>
+            <select value={newChildGender} onChange={e=>setNewChildGender(e.target.value)} style={{padding:"4px",borderRadius:5,border:"1px solid #a0c080",fontSize:11}}>
+              <option value="male">男</option>
+              <option value="female">女</option>
+            </select>
             <button onClick={addChild} style={{padding:"4px 10px",borderRadius:5,background:"#5a9a5a",border:"none",color:"#fff",fontSize:11,cursor:"pointer",fontWeight:700}}>追加</button>
           </div>
           {children.map((c,i)=>(
@@ -1240,12 +1247,16 @@ function AgeMemoSection({birthYear, bd, mainResult}) {
                 <>
                   <input value={editChild.name} onChange={e=>setEditChild({...editChild,name:e.target.value})} style={{width:60,fontSize:11,padding:"2px 4px",border:"1px solid #a0c080",borderRadius:4}}/>
                   <input type="time" value={editChild.birthTime||""} onChange={e=>setEditChild({...editChild,birthTime:e.target.value})} style={{width:86,fontSize:11,padding:"2px 4px",border:"1px solid #a0c080",borderRadius:4}}/>
+                  <select value={editChild.gender||"male"} onChange={e=>setEditChild({...editChild,gender:e.target.value})} style={{fontSize:11,padding:"2px 4px",border:"1px solid #a0c080",borderRadius:4}}>
+                    <option value="male">男</option>
+                    <option value="female">女</option>
+                  </select>
                   <button onClick={saveEditChild} style={{padding:"1px 6px",borderRadius:4,background:"#5a9a5a",border:"none",color:"#fff",fontSize:9,cursor:"pointer"}}>保存</button>
                   <button onClick={()=>{setEditChildIdx(null);setEditChild(null);}} style={{padding:"1px 6px",borderRadius:4,background:"#aaa",border:"none",color:"#fff",fontSize:9,cursor:"pointer"}}>取消</button>
                 </>
               ) : (
                 <>
-                  <span style={{fontSize:11,flex:1,color:"#3a5a3a"}}>{c.name}（{c.birthYear}/{c.birthMonth}/{c.birthDay}{c.birthTime?" "+c.birthTime:""}）</span>
+                  <span style={{fontSize:11,flex:1,color:"#3a5a3a"}}>{c.name}（{c.birthYear}/{c.birthMonth}/{c.birthDay}{c.birthTime?" "+c.birthTime:""}・{c.gender==="female"?"女":"男"}）</span>
                   <button onClick={()=>startEditChild(i)} style={{padding:"1px 6px",borderRadius:4,background:"transparent",border:"1px solid #a0c080",color:"#5a7a5a",fontSize:9,cursor:"pointer"}}>編集</button>
                   <button onClick={()=>deleteChild(i)} style={{padding:"1px 6px",borderRadius:4,background:"transparent",border:"1px solid #e0a0a0",color:"#c06060",fontSize:9,cursor:"pointer"}}>✕</button>
                 </>
