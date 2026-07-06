@@ -460,12 +460,80 @@ function FamilyFortuneBoard({list}) {
   );
 }
 
+// ─── 保存リスト用 人生メモパネル ──────────────────────────
+// 鑑定画面の人生メモ（shichusuimei_memo_${bd}）と同じ保管場所を共有する。
+// calcAll でその場で命式を再計算し、LifeTimelineTable で大運・年運と照合表示する。
+function memoCountOf(bd) {
+  try { return JSON.parse(localStorage.getItem(`shichusuimei_memo_${bd}`)||'[]').length; } catch { return 0; }
+}
+function SavedMemoPanel({ person, onChanged }) {
+  const storageKey = `shichusuimei_memo_${person.bd}`;
+  const birthYear  = Number(person.bd.split("-")[0]);
+  const result = React.useMemo(() => {
+    try { return calcAll(person.name, person.bd, person.bt||'', person.gender||'male'); }
+    catch { return null; }
+  }, [person]);
+  const [memos, setMemos]     = React.useState([]);
+  const [newYear, setNewYear] = React.useState(String(new Date().getFullYear()));
+  const [newDate, setNewDate] = React.useState("");
+  const [newText, setNewText] = React.useState("");
+
+  React.useEffect(() => {
+    try { const ms = localStorage.getItem(storageKey); setMemos(ms?JSON.parse(ms):[]); } catch { setMemos([]); }
+  }, [storageKey]);
+
+  const save = (m) => {
+    const sorted = [...m].sort((a,b)=> a.year!==b.year ? a.year-b.year : (a.isWork?1:0)-(b.isWork?1:0));
+    setMemos(sorted);
+    try { localStorage.setItem(storageKey, JSON.stringify(sorted)); } catch { /* 容量超過等 */ }
+    if (onChanged) onChanged();
+  };
+  const add = () => {
+    const year = parseInt(newYear);
+    if (!year || year<1900 || year>2200 || !newText.trim()) return;
+    save([...memos, {age: year-birthYear+1, year, date:newDate.trim(), text:newText.trim()}]);
+    setNewText(""); setNewDate("");
+  };
+  const del = (i) => { if (window.confirm('このメモを削除しますか？')) save(memos.filter((_,idx)=>idx!==i)); };
+
+  return (
+    <div style={{margin:"0 4px 6px 24px",padding:"10px 12px",background:"#faf5ec",border:"1px dashed #c4a070",borderRadius:10}}>
+      <div style={{fontSize:12,fontWeight:600,color:"#8a5a1a",marginBottom:6}}>📝 {person.name} さんの人生メモ<span style={{fontWeight:400,color:"#a08a68",fontSize:10,marginLeft:8}}>鑑定画面の人生メモと共通（編集は鑑定画面から）</span></div>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",marginBottom:8}}>
+        <input value={newYear} onChange={e=>setNewYear(e.target.value)} placeholder="年" style={{width:56,padding:"5px 6px",border:"1px solid #d8c8a8",borderRadius:6,fontSize:12}}/>
+        <input value={newDate} onChange={e=>setNewDate(e.target.value)} placeholder="日付任意 7/7" style={{width:86,padding:"5px 6px",border:"1px solid #d8c8a8",borderRadius:6,fontSize:12}}/>
+        <input value={newText} onChange={e=>setNewText(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')add();}} placeholder="出来事（例：癌で入院／結婚／長男誕生）" style={{flex:1,minWidth:150,padding:"5px 8px",border:"1px solid #d8c8a8",borderRadius:6,fontSize:12}}/>
+        <button onClick={add} style={{background:"#c88a2a",color:"#fff",border:"none",padding:"6px 14px",borderRadius:16,fontSize:12,cursor:"pointer",fontWeight:600}}>追加</button>
+      </div>
+      {memos.length===0 ? (
+        <div style={{fontSize:11,color:"#b0a090",padding:"2px 0"}}>メモはまだありません。「2026／癌で入院」のように年＋出来事で追加すると、大運・年運との照合表が下に出ます。</div>
+      ) : (
+        <>
+          <div style={{display:"flex",flexDirection:"column",gap:3,marginBottom:10}}>
+            {memos.map((m,i)=>(
+              <div key={i} style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#3a3028",background:"#fff",border:"1px solid #ece2d0",borderRadius:6,padding:"4px 8px"}}>
+                <span style={{color:"#8a6010",fontWeight:600,whiteSpace:"nowrap"}}>{m.year}年{m.date?` ${m.date}`:""}（数え{m.age||m.year-birthYear+1}歳）</span>
+                <span style={{flex:1}}>{m.text}</span>
+                <button onClick={()=>del(i)} style={{background:"none",border:"none",color:"#bbb",cursor:"pointer",fontSize:12}}>✕</button>
+              </div>
+            ))}
+          </div>
+          <LifeTimelineTable memos={memos} birthYear={birthYear} mainResult={result}/>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── 保存リストタブ ──────────────────────────────────────
 function SavedListTab({ onLoad }) {
   const [list, setList]       = React.useState(savedList());
   const [selected, setSelected] = React.useState([]);
   const [comparing, setComparing] = React.useState(false);
   const [showBoard, setShowBoard] = React.useState(true);
+  const [memoOpen, setMemoOpen] = React.useState(null);   // 人生メモパネルを開いている行index
+  const [memoTick, setMemoTick] = React.useState(0);      // メモ更新時に件数バッジを再描画
+  const memoCounts = React.useMemo(() => list.map(p=>memoCountOf(p.bd)), [list, memoTick]);
 
   // タブ表示・保存イベントのたびに最新データを読み込む
   React.useEffect(() => {
@@ -484,6 +552,7 @@ function SavedListTab({ onLoad }) {
   const doDelete = (i) => {
     const l = savedList(); l.splice(i,1); saveList(l);
     setSelected(s=>s.filter(x=>x!==i).map(x=>x>i?x-1:x));
+    setMemoOpen(null);
     reload();
   };
 
@@ -530,15 +599,19 @@ function SavedListTab({ onLoad }) {
           {showBoard && <FamilyFortuneBoard list={list}/>}
           <div style={{display:"flex",flexDirection:"column",gap:6}}>
             {list.map((p,i)=>(
-              <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"10px 12px",background:selected.includes(i)?"#fdf0e0":"white",borderRadius:10,border:`1px solid ${selected.includes(i)?"#c4a070":"#e8e0d0"}`,cursor:"pointer"}} onClick={()=>toggle(i)}>
+              <React.Fragment key={i}>
+              <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 12px",background:selected.includes(i)?"#fdf0e0":"white",borderRadius:10,border:`1px solid ${selected.includes(i)?"#c4a070":"#e8e0d0"}`,cursor:"pointer"}} onClick={()=>toggle(i)}>
                 <input type="checkbox" checked={selected.includes(i)} onChange={()=>toggle(i)} onClick={e=>e.stopPropagation()} style={{width:16,height:16,accentColor:"#c4973a",flexShrink:0}}/>
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontSize:13,fontWeight:600,color:"#1a1410"}}>{p.name}</div>
                   <div style={{fontSize:11,color:"#7a6e68"}}>{p.bd.replace(/-/g,'/')} · {p.gender==='male'?'男性':'女性'} · 日主：<b style={{color:GCOLS[p.dayEl]||"#888"}}>{p.dayEl}</b></div>
                 </div>
+                <button onClick={e=>{e.stopPropagation();setMemoOpen(memoOpen===i?null:i);}} style={{background:memoOpen===i?"#c88a2a":(memoCounts[i]>0?"#fdf0dc":"#f5f0e8"),border:"1px solid #c4a070",borderRadius:20,padding:"3px 10px",fontSize:11,cursor:"pointer",color:memoOpen===i?"#fff":"#8a6010",whiteSpace:"nowrap",fontWeight:memoCounts[i]>0?600:400}}>📝{memoCounts[i]>0?` ${memoCounts[i]}`:" メモ"}</button>
                 <button onClick={e=>{e.stopPropagation();onLoad(p);}} style={{background:"#f5f0e8",border:"1px solid #c4a070",borderRadius:20,padding:"3px 10px",fontSize:11,cursor:"pointer",color:"#8a6010",whiteSpace:"nowrap"}}>📋 開く</button>
                 <button onClick={e=>{e.stopPropagation();if(window.confirm(p.name+'を削除しますか？'))doDelete(i);}} style={{background:"none",border:"1px solid #e0d8c8",borderRadius:20,padding:"3px 8px",fontSize:11,cursor:"pointer",color:"#aaa"}}>✕</button>
               </div>
+              {memoOpen===i && <SavedMemoPanel person={p} onChanged={()=>setMemoTick(t=>t+1)}/>}
+              </React.Fragment>
             ))}
           </div>
         </>
