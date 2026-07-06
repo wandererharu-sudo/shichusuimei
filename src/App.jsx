@@ -3714,11 +3714,13 @@ function MbtiTab({ result, mbtiInitial, onSaved }) {
 }
 
 function App() {
-  const [authed, setAuthed] = useState(()=>sessionStorage.getItem("shichusuimei_auth")==="1");
+  // 認証は localStorage に永続化：端末（ブラウザ）ごとに初回1回だけ入力すればよい
+  // （旧 sessionStorage の認証済み印も引き続き有効として扱う）
+  const [authed, setAuthed] = useState(()=>localStorage.getItem("shichusuimei_auth")==="1"||sessionStorage.getItem("shichusuimei_auth")==="1");
   const [pw, setPw] = useState("");
   const [pwError, setPwError] = useState(false);
   const checkPw = () => {
-    if(pw==="Harukun-0120"){ setAuthed(true); sessionStorage.setItem("shichusuimei_auth","1"); }
+    if(pw==="Harukun-0120"){ setAuthed(true); try{ localStorage.setItem("shichusuimei_auth","1"); }catch{ sessionStorage.setItem("shichusuimei_auth","1"); } }
     else setPwError(true);
   };
   // スマートフォン・iPad対応
