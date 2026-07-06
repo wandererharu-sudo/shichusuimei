@@ -585,7 +585,23 @@ function SavedListTab({ onLoad }) {
         if (data.savedKantei) { alert('旧HTML版のバックアップ形式のため取り込めません。\nこのアプリの「⬇ バックアップ」で出力したJSONを使ってください。'); return; }
         if (!Array.isArray(data.persons)) { alert('形式が正しくありません（personsキーが見つかりません）。'); return; }
         const cur = savedList();
-        const newPersons = data.persons.filter(np=>np&&np.name&&np.bd&&!cur.find(p=>p.name===np.name&&p.bd===np.bd));
+        // 最小項目（名前・生年月日・性別・時刻）だけの人物は calcAll で命式を再計算して補完する
+        const normalize = (np) => {
+          if (np.pillars && np.dayEl && np.ec) return np;
+          try {
+            const r = calcAll(np.name, np.bd, np.bt||'', np.gender||'male');
+            return {
+              name: np.name, bd: np.bd, bt: np.bt||'', gender: np.gender||'male',
+              dayEl: r.pillars.day.stemEl,
+              pillars: { year: r.pillars.year, month: r.pillars.month, day: r.pillars.day },
+              stemEc: r.stemEc, branchEc: r.branchEc, ec: r.ec,
+              mbti: np.mbti||'', savedAt: np.savedAt||new Date().toISOString()
+            };
+          } catch { return null; }
+        };
+        const newPersons = data.persons
+          .filter(np=>np&&np.name&&np.bd&&!cur.find(p=>p.name===np.name&&p.bd===np.bd))
+          .map(normalize).filter(Boolean);
         saveList([...cur, ...newPersons]);
         let memoAdd = 0;
         Object.entries(data.memos||{}).forEach(([bd, arr])=>{
