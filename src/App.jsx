@@ -562,6 +562,53 @@ function SavedListTab({ onLoad }) {
     setComparing(true);
   };
 
+  // ── JSONバックアップ（保存リスト＋各人の人生メモ・家族データを丸ごと） ──
+  const downloadJSON = () => {
+    const l = savedList();
+    const memos = {}, children = {};
+    l.forEach(p=>{
+      try { const m = localStorage.getItem(`shichusuimei_memo_${p.bd}`); if(m) memos[p.bd]=JSON.parse(m); } catch { /* 破損データは無視 */ }
+      try { const c = localStorage.getItem(`shichusuimei_children_${p.bd}`); if(c) children[p.bd]=JSON.parse(c); } catch { /* 破損データは無視 */ }
+    });
+    const data = {app:"shichusuimei", type:"persons_backup", exportedAt:new Date().toISOString(), persons:l, memos, children};
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
+    a.download = `四柱推命_保存リスト_${new Date().toISOString().slice(0,10)}.json`; a.click();
+  };
+  // ── JSONインポート（重複はスキップしてマージ） ──
+  const importJSON = (e) => {
+    const file = e.target.files[0]; if(!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result.trim());
+        if (data.savedKantei) { alert('旧HTML版のバックアップ形式のため取り込めません。\nこのアプリの「⬇ バックアップ」で出力したJSONを使ってください。'); return; }
+        if (!Array.isArray(data.persons)) { alert('形式が正しくありません（personsキーが見つかりません）。'); return; }
+        const cur = savedList();
+        const newPersons = data.persons.filter(np=>np&&np.name&&np.bd&&!cur.find(p=>p.name===np.name&&p.bd===np.bd));
+        saveList([...cur, ...newPersons]);
+        let memoAdd = 0;
+        Object.entries(data.memos||{}).forEach(([bd, arr])=>{
+          if (!Array.isArray(arr)) return;
+          let curM = [];
+          try { curM = JSON.parse(localStorage.getItem(`shichusuimei_memo_${bd}`)||'[]'); } catch { curM = []; }
+          arr.forEach(m=>{ if(m&&m.year&&m.text&&!curM.find(x=>x.year===m.year&&x.text===m.text)){ curM.push(m); memoAdd++; } });
+          curM.sort((a,b)=>a.year-b.year);
+          try { localStorage.setItem(`shichusuimei_memo_${bd}`, JSON.stringify(curM)); } catch { /* 容量超過等 */ }
+        });
+        Object.entries(data.children||{}).forEach(([bd, arr])=>{
+          if (Array.isArray(arr) && !localStorage.getItem(`shichusuimei_children_${bd}`)) {
+            try { localStorage.setItem(`shichusuimei_children_${bd}`, JSON.stringify(arr)); } catch { /* 容量超過等 */ }
+          }
+        });
+        setMemoTick(t=>t+1);
+        reload();
+        alert(`インポート完了\n人物：${newPersons.length}件追加（重複${data.persons.length-newPersons.length}件スキップ）\n人生メモ：${memoAdd}件追加`);
+      } catch (err) { alert('読み込みエラー：'+err.message); }
+    };
+    reader.readAsText(file); e.target.value='';
+  };
+
   const downloadCSV = () => {
     const l = savedList();
     if (!l.length) return;
@@ -587,15 +634,24 @@ function SavedListTab({ onLoad }) {
       {comparing && (
         <GogyouCompare persons={selected.map(i=>list[i])} onClose={()=>setComparing(false)}/>
       )}
-      {list.length===0 ? (
-        <div style={{textAlign:"center",padding:32,color:"#7a6e68",fontSize:13}}>保存された人物はいません<br/><span style={{fontSize:11}}>鑑定後「💾 保存」ボタンで追加できます</span></div>
-      ) : (
-        <>
-          <div style={{marginBottom:10,display:"flex",gap:8,flexWrap:"wrap"}}>
+      <div style={{marginBottom:10,display:"flex",gap:8,flexWrap:"wrap"}}>
+        {list.length>0 && (
+          <>
             <button onClick={()=>setShowBoard(v=>!v)} style={{background:showBoard?"#c88a2a":"#f5f0e8",border:"1px solid #c88a2a",color:showBoard?"#fff":"#8a5a1a",padding:"7px 16px",borderRadius:20,fontSize:12,cursor:"pointer",fontWeight:600}}>⛩ 今年の運勢ボード</button>
             <button onClick={doCompare} style={{background:"linear-gradient(135deg,#1a1410,#3d2a1a)",color:"#f5f0e8",border:"none",padding:"7px 16px",borderRadius:20,fontSize:12,cursor:"pointer",fontWeight:600}}>📊 五行比較（{selected.length}人選択中）</button>
             <button onClick={downloadCSV} style={{background:"#f5f0e8",border:"1px solid #c4a070",color:"#8a6010",padding:"7px 16px",borderRadius:20,fontSize:12,cursor:"pointer"}}>⬇ CSV保存</button>
-          </div>
+            <button onClick={downloadJSON} style={{background:"#f5f0e8",border:"1px solid #c4a070",color:"#8a6010",padding:"7px 16px",borderRadius:20,fontSize:12,cursor:"pointer"}}>⬇ バックアップ(JSON)</button>
+          </>
+        )}
+        <label style={{background:"#eef4fa",border:"1px solid #8aaac8",color:"#2a5a8a",padding:"7px 16px",borderRadius:20,fontSize:12,cursor:"pointer",display:"inline-flex",alignItems:"center"}}>
+          📤 インポート(.json)
+          <input type="file" accept=".json,application/json" onChange={importJSON} style={{display:"none"}}/>
+        </label>
+      </div>
+      {list.length===0 ? (
+        <div style={{textAlign:"center",padding:32,color:"#7a6e68",fontSize:13}}>保存された人物はいません<br/><span style={{fontSize:11}}>鑑定後「💾 保存」ボタンで追加するか、上の「📤 インポート」でバックアップJSONを取り込めます</span></div>
+      ) : (
+        <>
           {showBoard && <FamilyFortuneBoard list={list}/>}
           <div style={{display:"flex",flexDirection:"column",gap:6}}>
             {list.map((p,i)=>(
