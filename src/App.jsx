@@ -732,6 +732,33 @@ function SavedListTab({ onLoad }) {
     groupFilter==='all' ? true : groupFilter==='__none__' ? !p.group : p.group===groupFilter
   );
 
+  // ── カテゴリーごとの折りたたみ（端末ごとの表示設定・クラウド同期には乗せない） ──
+  const COLLAPSE_KEY = 'shichusuimei_collapsed_groups';
+  const [collapsedGroups, setCollapsedGroups] = React.useState(()=>{ try { return JSON.parse(localStorage.getItem(COLLAPSE_KEY)||'[]'); } catch { return []; } });
+  const toggleCollapse = (key) => setCollapsedGroups(prev => {
+    const next = prev.includes(key) ? prev.filter(x=>x!==key) : [...prev, key];
+    try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify(next)); } catch { /* 保存不可環境 */ }
+    return next;
+  });
+  // グループごとのセクション（登場順・未分類は最後）。visible=折りたたみ分を除いた表示行（ボード・ドラッグと共用）
+  const sections = (()=>{
+    const m = new Map();
+    items.forEach(it => { const g = it.p.group || ''; if (!m.has(g)) m.set(g, []); m.get(g).push(it); });
+    const keys = [...m.keys()];
+    if (keys.includes('')) { keys.splice(keys.indexOf(''),1); keys.push(''); }
+    const showHeaders = !(keys.length===1 && keys[0]==='');
+    const renderList = [], visible = [];
+    let di = 0;
+    keys.forEach(g => {
+      const key = g || '__none__';
+      const isC = showHeaders && collapsedGroups.includes(key);
+      if (showHeaders) renderList.push({type:'header', g, key, count:m.get(g).length, isC});
+      if (!isC) m.get(g).forEach(it => { renderList.push({type:'row', it, di}); visible.push(it); di++; });
+    });
+    return { renderList, visible };
+  })();
+  const { renderList, visible } = sections;
+
   const toggle = (i) => setSelected(prev =>
     prev.includes(i) ? prev.filter(x=>x!==i) : [...prev,i]
   );
@@ -744,7 +771,7 @@ function SavedListTab({ onLoad }) {
   const scrollDirRef = React.useRef(0);
   const overFromY = (y) => {
     let best = 0, bestD = Infinity;
-    items.forEach((_, di) => {
+    visible.forEach((_, di) => {
       const el = rowRefs.current[di];
       if (!el) return;
       const r = el.getBoundingClientRect();
@@ -782,9 +809,9 @@ function SavedListTab({ onLoad }) {
     const d = dragRef.current;
     dragRef.current = null; scrollDirRef.current = 0;
     setDrag(null);
-    if (!d || d.from === d.over || !items[d.from] || !items[d.over]) return;
+    if (!d || d.from === d.over || !visible[d.from] || !visible[d.over]) return;
     const l = savedList();
-    const fromIdx = items[d.from].i, toIdx = items[d.over].i;
+    const fromIdx = visible[d.from].i, toIdx = visible[d.over].i;
     const [moved] = l.splice(fromIdx, 1);
     l.splice(toIdx, 0, moved);
     saveList(l);
@@ -925,10 +952,17 @@ function SavedListTab({ onLoad }) {
               )}
             </div>
           )}
-          {showBoard && <FamilyFortuneBoard list={items.map(x=>x.p)}/>}
+          {showBoard && <FamilyFortuneBoard list={visible.map(x=>x.p)}/>}
           <datalist id="shichu-groups">{groups.map(g=><option key={g} value={g}/>)}</datalist>
           <div style={{display:"flex",flexDirection:"column",gap:6}}>
-            {items.map(({p,i},di)=>(
+            {renderList.map(entry => entry.type==='header' ? (
+              <div key={'h_'+entry.key} onClick={()=>toggleCollapse(entry.key)}
+                style={{display:"flex",alignItems:"center",gap:6,padding:"7px 10px",background:"#f0e8da",borderRadius:8,border:"1px solid #d4b896",cursor:"pointer",userSelect:"none",marginTop:4}}>
+                <span style={{fontSize:10,color:"#8a6a3a",width:12,textAlign:"center"}}>{entry.isC?'▶':'▼'}</span>
+                <span style={{fontSize:12,fontWeight:700,color:"#5a3a1a"}}>{entry.g||'未分類'}</span>
+                <span style={{fontSize:10,color:"#9a8a70"}}>{entry.count}人{entry.isC?'（タップで表示）':''}</span>
+              </div>
+            ) : (()=>{ const {p,i} = entry.it; const di = entry.di; return (
               <React.Fragment key={i}>
               <div ref={el=>{rowRefs.current[di]=el;}} style={{display:"flex",alignItems:"center",gap:8,padding:"10px 12px",background:selected.includes(i)?"#fdf0e0":"white",borderRadius:10,border:`1px solid ${selected.includes(i)?"#c4a070":"#e8e0d0"}`,cursor:"pointer",opacity:drag&&drag.from===di?0.45:1,outline:drag&&drag.over===di&&drag.from!==di?"2px dashed #c88a2a":"none"}} onClick={()=>toggle(i)}>
                 <span onPointerDown={e=>startDrag(e,di)} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag} onClick={e=>e.stopPropagation()} title="ドラッグで並べ替え"
@@ -951,7 +985,7 @@ function SavedListTab({ onLoad }) {
               {memoOpen===i && <SavedMemoPanel person={p} onChanged={()=>setMemoTick(t=>t+1)}/>}
               {familyOpen===i && <SavedFamilyPanel person={p} onChanged={()=>setFamilyTick(t=>t+1)}/>}
               </React.Fragment>
-            ))}
+            );})())}
           </div>
         </>
       )}
