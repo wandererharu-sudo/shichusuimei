@@ -336,6 +336,35 @@ function getMbti(name, bd) {
   return p?.mbti || '';
 }
 
+// ─── 音声鑑定（Web Speech API）ユーティリティ ─────────────
+// 「かみやまはるのり 1969年1月20日 男性」→ {name, year, month, day, gender}
+// 和暦（昭和・平成・令和／元年）にも対応。日付が無ければ name に全文が入る
+function parseVoiceKantei(raw) {
+  const t = (raw||'').replace(/[\s\u3000、。．,.]/g, '');
+  let year=null, month=null, day=null, dateStart=-1;
+  const g = /(\d{4})年の?(\d{1,2})月の?(\d{1,2})日/.exec(t);
+  const w = /(昭和|平成|令和)(元|\d{1,2})年の?(\d{1,2})月の?(\d{1,2})日/.exec(t);
+  if (g) { year=+g[1]; month=+g[2]; day=+g[3]; dateStart=g.index; }
+  else if (w) {
+    year = ({昭和:1925,平成:1988,令和:2018})[w[1]] + (w[2]==='元'?1:+w[2]);
+    month=+w[3]; day=+w[4]; dateStart=w.index;
+  }
+  const gender = /女/.test(t) ? 'female' : /男/.test(t) ? 'male' : null;
+  let name = dateStart>0 ? t.slice(0,dateStart) : (year!==null ? '' : t);
+  name = name.replace(/を?(占って|うらなって|鑑定して?|見て|みて)$/,'').replace(/(さん|様|さま|君|くん|ちゃん)$/,'');
+  return { name, year, month, day, gender };
+}
+// 認識テキストから保存リストの人物を探す（「〇〇を占って」の名前呼び出し用）
+function matchSavedPerson(raw) {
+  const norm = (s)=>(s||'').replace(/[\s\u3000、。．,.]/g,'').replace(/を?(占って|うらなって|鑑定して?|見て|みて)$/,'').replace(/(さん|様|さま|君|くん|ちゃん)$/,'');
+  const t = norm(raw);
+  if (!t) return null;
+  const list = savedList();
+  return list.find(p=>norm(p.name)===t)
+      || list.find(p=>{const n=norm(p.name); return n.length>=2 && (t.includes(n)||n.includes(t));})
+      || null;
+}
+
 // ─── 五行図比較コンポーネント ────────────────────────────
 function GogyouCompare({ persons, onClose }) {
   const ELS    = ["木","火","土","金","水"];
@@ -707,6 +736,63 @@ function SavedListTab({ onLoad }) {
     prev.includes(i) ? prev.filter(x=>x!==i) : [...prev,i]
   );
 
+  // ── ドラッグ&ドロップ並べ替え（⠿ハンドル・PCマウス/タッチ共通のポインターイベント） ──
+  const [drag, setDrag] = React.useState(null); // {from, over} 表示上のindex
+  const rowRefs = React.useRef([]);
+  const dragRef = React.useRef(null);
+  const lastYRef = React.useRef(0);
+  const scrollDirRef = React.useRef(0);
+  const overFromY = (y) => {
+    let best = 0, bestD = Infinity;
+    items.forEach((_, di) => {
+      const el = rowRefs.current[di];
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const d = Math.abs(y - (r.top + r.height/2));
+      if (d < bestD) { bestD = d; best = di; }
+    });
+    return best;
+  };
+  const startDrag = (e, di) => {
+    e.preventDefault(); e.stopPropagation();
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* 非対応環境 */ }
+    dragRef.current = { from: di, over: di };
+    lastYRef.current = e.clientY;
+    setDrag({ from: di, over: di });
+    // 画面端に近づいたら自動スクロール（指が止まっていても流れるようrAFループ）
+    const step = () => {
+      if (!dragRef.current) return;
+      if (scrollDirRef.current) {
+        window.scrollBy(0, scrollDirRef.current * 8);
+        const over = overFromY(lastYRef.current);
+        if (over !== dragRef.current.over) { dragRef.current = { ...dragRef.current, over }; setDrag({ ...dragRef.current }); }
+      }
+      requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  };
+  const moveDrag = (e) => {
+    if (!dragRef.current) return;
+    lastYRef.current = e.clientY;
+    scrollDirRef.current = e.clientY < 90 ? -1 : e.clientY > window.innerHeight - 90 ? 1 : 0;
+    const over = overFromY(e.clientY);
+    if (over !== dragRef.current.over) { dragRef.current = { ...dragRef.current, over }; setDrag({ ...dragRef.current }); }
+  };
+  const endDrag = () => {
+    const d = dragRef.current;
+    dragRef.current = null; scrollDirRef.current = 0;
+    setDrag(null);
+    if (!d || d.from === d.over || !items[d.from] || !items[d.over]) return;
+    const l = savedList();
+    const fromIdx = items[d.from].i, toIdx = items[d.over].i;
+    const [moved] = l.splice(fromIdx, 1);
+    l.splice(toIdx, 0, moved);
+    saveList(l);
+    // 並びが変わると行indexがズレるため、選択と開いているパネルはリセット
+    setSelected([]); setMemoOpen(null); setFamilyOpen(null);
+    reload();
+  };
+
   const doDelete = (i) => {
     const l = savedList(); l.splice(i,1); saveList(l);
     setSelected(s=>s.filter(x=>x!==i).map(x=>x>i?x-1:x));
@@ -842,12 +928,14 @@ function SavedListTab({ onLoad }) {
           {showBoard && <FamilyFortuneBoard list={items.map(x=>x.p)}/>}
           <datalist id="shichu-groups">{groups.map(g=><option key={g} value={g}/>)}</datalist>
           <div style={{display:"flex",flexDirection:"column",gap:6}}>
-            {items.map(({p,i})=>(
+            {items.map(({p,i},di)=>(
               <React.Fragment key={i}>
-              <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 12px",background:selected.includes(i)?"#fdf0e0":"white",borderRadius:10,border:`1px solid ${selected.includes(i)?"#c4a070":"#e8e0d0"}`,cursor:"pointer"}} onClick={()=>toggle(i)}>
+              <div ref={el=>{rowRefs.current[di]=el;}} style={{display:"flex",alignItems:"center",gap:8,padding:"10px 12px",background:selected.includes(i)?"#fdf0e0":"white",borderRadius:10,border:`1px solid ${selected.includes(i)?"#c4a070":"#e8e0d0"}`,cursor:"pointer",opacity:drag&&drag.from===di?0.45:1,outline:drag&&drag.over===di&&drag.from!==di?"2px dashed #c88a2a":"none"}} onClick={()=>toggle(i)}>
+                <span onPointerDown={e=>startDrag(e,di)} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag} onClick={e=>e.stopPropagation()} title="ドラッグで並べ替え"
+                  style={{cursor:drag?"grabbing":"grab",touchAction:"none",userSelect:"none",WebkitUserSelect:"none",color:"#c0b0a0",fontSize:15,padding:"4px 2px",flexShrink:0,lineHeight:1}}>⠿</span>
                 <input type="checkbox" checked={selected.includes(i)} onChange={()=>toggle(i)} onClick={e=>e.stopPropagation()} style={{width:16,height:16,accentColor:"#c4973a",flexShrink:0}}/>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:13,fontWeight:600,color:"#1a1410"}}>{p.name}</div>
+                <div style={{flex:1,minWidth:0}} onClick={e=>{e.stopPropagation();setFamilyOpen(familyOpen===i?null:i);}} title="クリックで家族一覧">
+                  <div style={{fontSize:13,fontWeight:600,color:"#1a1410"}}><span style={{borderBottom:"1px dotted #b09060"}}>{p.name}</span></div>
                   <div style={{fontSize:11,color:"#7a6e68"}}>{p.bd.replace(/-/g,'/')} · {p.gender==='male'?'男性':'女性'} · 日主：<b style={{color:GCOLS[p.dayEl]||"#888"}}>{p.dayEl}</b></div>
                 </div>
                 <input list="shichu-groups" key={`g${i}-${p.group||''}`} defaultValue={p.group||''} placeholder="グループ"
@@ -4015,6 +4103,10 @@ function App() {
   }, []);
   const [result, setResult] = useState(null);
   const [submitted, setSubmitted] = useState(false);
+  // 音声鑑定の状態（Hooks規則のため認証チェックより前に置く）
+  const [listening, setListening] = useState(false);
+  const [voiceMsg, setVoiceMsg] = useState('');
+  const recRef = React.useRef(null);
   const [globalApiKey, setGlobalApiKey] = useState("");
   const [activeTab, setActiveTab] = useState("result"); // "result" | "memo"
   const [saveMsg, setSaveMsg] = useState('');
@@ -4066,6 +4158,68 @@ function App() {
     setSubmitted(true);
     setActiveTab("result");
   };
+
+  // 保存リストの人物をフォーム＋鑑定結果に展開（保存リストタブの📋開く・音声呼び出しの共通処理）
+  const openPerson = (p) => {
+    const [py,pm,pd] = p.bd.split("-");
+    setFormName(p.name);
+    setFormGender(p.gender||"male");
+    setFormYear(String(Number(py)));
+    setFormMonth(String(Number(pm)));
+    setFormDay(String(Number(pd)));
+    setFormTime(p.bt||"");
+    setResult(calcAll(p.name, p.bd, p.bt||"", p.gender||"male"));
+    setSubmitted(true);
+    setActiveTab("result");
+  };
+
+  // ── 音声で鑑定（Web Speech API・iPad/iPhoneはSafari、PCはChrome対応） ──
+  const handleVoiceText = (text) => {
+    const p = matchSavedPerson(text);
+    const parsed = parseVoiceKantei(text);
+    const hasDate = parsed.year && parsed.month && parsed.day;
+    // 保存リストに一致（生年月日を言っていない）→ その人を開く
+    if (p && !hasDate) { openPerson(p); setVoiceMsg(`「${text}」→ 保存リストの ${p.name} さんを開きました`); return; }
+    // 生年月日あり → フォームに入れて即鑑定
+    if (hasDate) {
+      const {year:y, month:m, day:d} = parsed;
+      const dt = new Date(y, m-1, d);
+      if (dt.getFullYear()!==y || dt.getMonth()!==m-1 || dt.getDate()!==d) {
+        setVoiceMsg(`「${text}」→ ${y}年${m}月${d}日は存在しない日付です。もう一度お試しください`);
+        return;
+      }
+      const name = parsed.name || formName || "名無し";
+      const gender = parsed.gender || formGender;
+      setFormName(name); setFormGender(gender);
+      setFormYear(String(y)); setFormMonth(String(m)); setFormDay(String(d));
+      const bd = `${y}-${String(m).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+      setResult(calcAll(name, bd, formTime, gender));
+      setSubmitted(true);
+      setActiveTab("result");
+      setVoiceMsg(`「${text}」→ ${name} さん（${y}年${m}月${d}日）で鑑定しました`);
+      return;
+    }
+    if (parsed.name) setFormName(parsed.name);
+    setVoiceMsg(`「${text}」→ 生年月日が聞き取れませんでした。「名前 1970年1月15日 男性」のように話すか、保存済みの方は名前だけどうぞ`);
+  };
+  const startVoice = () => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { setVoiceMsg("この端末のブラウザは音声認識に対応していません（iPad/iPhoneはSafari、PCはChromeでお試しください）"); return; }
+    try {
+      const rec = new SR();
+      rec.lang = "ja-JP"; rec.interimResults = false; rec.maxAlternatives = 1;
+      rec.onresult = (e) => handleVoiceText(e.results[0][0].transcript || "");
+      rec.onerror  = (e) => setVoiceMsg(
+        e.error==="not-allowed" ? "マイクの使用が許可されていません（ブラウザのマイク設定をご確認ください）"
+        : e.error==="no-speech" ? "声が聞き取れませんでした。もう一度お試しください"
+        : "音声認識エラー："+e.error);
+      rec.onend = () => setListening(false);
+      recRef.current = rec;
+      setVoiceMsg(""); setListening(true);
+      rec.start();
+    } catch { setListening(false); setVoiceMsg("音声認識を開始できませんでした"); }
+  };
+  const stopVoice = () => { try { if (recRef.current) recRef.current.stop(); } catch { /* 停止失敗は無視 */ } setListening(false); };
 
   const inputStyle = {
     border:"1px solid #c4a070",
@@ -4176,14 +4330,22 @@ function App() {
               </tr>
             </tbody>
           </table>
-          <div style={{textAlign:"center",marginTop:20}}>
+          <div style={{textAlign:"center",marginTop:20,display:"flex",gap:10,justifyContent:"center",alignItems:"center",flexWrap:"wrap"}}>
             <button
               onClick={handleKantei}
               style={{background:"linear-gradient(135deg,#d4950a,#e8b030)",border:"none",borderRadius:24,padding:"12px 48px",color:"#fff",fontSize:16,fontWeight:700,cursor:"pointer",letterSpacing:4,boxShadow:"0 4px 16px #c88a2a55",fontFamily:"inherit"}}
             >
               鑑　定
             </button>
+            <button
+              onClick={listening ? stopVoice : startVoice}
+              style={{background:listening?"#c04040":"#fdf5e8",border:"1px solid #c4a070",borderRadius:24,padding:"12px 20px",color:listening?"#fff":"#8a6a3a",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}
+            >
+              {listening ? "🎤 聞き取り中…（タップで停止）" : "🎤 音声で鑑定"}
+            </button>
           </div>
+          {listening && <div style={{textAlign:"center",marginTop:8,fontSize:11,color:"#c04040"}}>「名前 1970年1月15日 男性」のように一息で、または保存済みの方は名前だけ話してください</div>}
+          {!listening && voiceMsg && <div style={{textAlign:"center",marginTop:8,fontSize:11,color:"#8a6a3a"}}>{voiceMsg}</div>}
         </div>
 
         {/* 鑑定結果 */}
@@ -4314,18 +4476,7 @@ function App() {
             {/* ── 保存リストタブ ── */}
             {activeTab==="savedlist" && (
               <div style={{border:"1px solid #c4a070",borderTop:"none",borderRadius:"0 8px 8px 8px",padding:"16px",background:"rgba(253,248,242,0.95)"}}>
-                <SavedListTab onLoad={(p)=>{
-                  const [py,pm,pd] = p.bd.split("-");
-                  setFormName(p.name);
-                  setFormGender(p.gender||"male");
-                  setFormYear(String(Number(py)));
-                  setFormMonth(String(Number(pm)));
-                  setFormDay(String(Number(pd)));
-                  setFormTime(p.bt||"");
-                  setResult(calcAll(p.name, p.bd, p.bt||"", p.gender||"male"));
-                  setSubmitted(true);
-                  setActiveTab("result");
-                }}/>
+                <SavedListTab onLoad={openPerson}/>
               </div>
             )}
 
