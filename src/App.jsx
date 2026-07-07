@@ -613,7 +613,11 @@ function SyncBar() {
 function familyCountOf(bd) {
   try { return JSON.parse(localStorage.getItem(`shichusuimei_children_${bd}`)||'[]').length; } catch { return 0; }
 }
-function SavedFamilyPanel({ person, onChanged }) {
+// 家族メンバー（birthYear/Month/Day形式）→ 保存リスト人物形式（openPersonでフル鑑定できる形）
+function famToPerson(c) {
+  return { name: c.name, bd: `${c.birthYear}-${String(c.birthMonth||1).padStart(2,'0')}-${String(c.birthDay||1).padStart(2,'0')}`, bt: c.birthTime||'', gender: c.gender||'male' };
+}
+function SavedFamilyPanel({ person, onChanged, onOpen }) {
   const childrenKey = `shichusuimei_children_${person.bd}`;
   const [children, setChildren] = React.useState([]);
   const [newName, setNewName]     = React.useState("");
@@ -672,7 +676,7 @@ function SavedFamilyPanel({ person, onChanged }) {
         <div style={{fontSize:11,color:"#90a888",padding:"2px 0"}}>家族はまだ登録されていません。名前と生年月日を入れて「追加」してください。</div>
       ) : children.map((c,i)=>(
         <div key={i} style={{display:"flex",alignItems:"center",gap:6,padding:"3px 6px",background:"#fff",borderRadius:5,border:"1px solid #c0d8b0",marginBottom:3}}>
-          <span style={{fontSize:11,flex:1,color:"#3a5a3a"}}>{c.name}（{c.birthYear}/{c.birthMonth}/{c.birthDay}{c.birthTime?" "+c.birthTime:""}・{c.gender==="female"?"女":"男"}）</span>
+          <span onClick={()=>{ if(!onOpen) return; try { onOpen(famToPerson(c)); } catch { /* 生年月日不備は無視 */ } }} title="タップでフル鑑定" style={{fontSize:11,flex:1,color:"#3a5a3a",cursor:onOpen?"pointer":"default"}}><span style={{borderBottom:onOpen?"1px dotted #8ab070":"none"}}>{c.name}</span>（{c.birthYear}/{c.birthMonth}/{c.birthDay}{c.birthTime?" "+c.birthTime:""}・{c.gender==="female"?"女":"男"}）</span>
           <button onClick={()=>openMeishiki(c)} style={{padding:"1px 8px",borderRadius:4,background:"#eef5e8",border:"1px solid #a0c080",color:"#3a6a2a",fontSize:10,cursor:"pointer"}}>命式</button>
           <button onClick={()=>del(i)} style={{padding:"1px 6px",borderRadius:4,background:"transparent",border:"1px solid #e0a0a0",color:"#c06060",fontSize:9,cursor:"pointer"}}>✕</button>
         </div>
@@ -983,7 +987,7 @@ function SavedListTab({ onLoad }) {
                 <button onClick={e=>{e.stopPropagation();if(window.confirm(p.name+'を削除しますか？'))doDelete(i);}} style={{background:"none",border:"1px solid #e0d8c8",borderRadius:20,padding:"3px 8px",fontSize:11,cursor:"pointer",color:"#aaa"}}>✕</button>
               </div>
               {memoOpen===i && <SavedMemoPanel person={p} onChanged={()=>setMemoTick(t=>t+1)}/>}
-              {familyOpen===i && <SavedFamilyPanel person={p} onChanged={()=>setFamilyTick(t=>t+1)}/>}
+              {familyOpen===i && <SavedFamilyPanel person={p} onChanged={()=>setFamilyTick(t=>t+1)} onOpen={onLoad}/>}
               </React.Fragment>
             );})())}
           </div>
@@ -1422,7 +1426,7 @@ function LifeTimelineTable({memos, birthYear, mainResult}) {
 }
 
 // ─── 年齢メモセクション（パスワード保護） ────────────────────────
-function AgeMemoSection({birthYear, bd, mainResult}) {
+function AgeMemoSection({birthYear, bd, mainResult, onOpenPerson}) {
   const storageKey  = `shichusuimei_memo_${bd}`;
   const childrenKey = `shichusuimei_children_${bd}`;
 
@@ -1702,7 +1706,7 @@ function AgeMemoSection({birthYear, bd, mainResult}) {
                 </>
               ) : (
                 <>
-                  <span style={{fontSize:11,flex:1,color:"#3a5a3a"}}>{c.name}（{c.birthYear}/{c.birthMonth}/{c.birthDay}{c.birthTime?" "+c.birthTime:""}・{c.gender==="female"?"女":"男"}）</span>
+                  <span onClick={()=>{ if(!onOpenPerson) return; try { onOpenPerson(famToPerson(c)); } catch { /* 生年月日不備は無視 */ } }} title="タップでフル鑑定" style={{fontSize:11,flex:1,color:"#3a5a3a",cursor:onOpenPerson?"pointer":"default"}}><span style={{borderBottom:onOpenPerson?"1px dotted #8ab070":"none"}}>{c.name}</span>（{c.birthYear}/{c.birthMonth}/{c.birthDay}{c.birthTime?" "+c.birthTime:""}・{c.gender==="female"?"女":"男"}）</span>
                   <button onClick={()=>startEditChild(i)} style={{padding:"1px 6px",borderRadius:4,background:"transparent",border:"1px solid #a0c080",color:"#5a7a5a",fontSize:9,cursor:"pointer"}}>編集</button>
                   <button onClick={()=>deleteChild(i)} style={{padding:"1px 6px",borderRadius:4,background:"transparent",border:"1px solid #e0a0a0",color:"#c06060",fontSize:9,cursor:"pointer"}}>✕</button>
                 </>
@@ -4489,7 +4493,7 @@ function App() {
             {/* ── 人生メモタブ ── */}
             {activeTab==="memo" && (
               <div style={{border:"1px solid #c4a070",borderTop:"none",borderRadius:"0 8px 8px 8px",padding:"24px 16px",background:"rgba(253,248,242,0.95)"}}>
-                <AgeMemoSection birthYear={Number(result.bd.split("-")[0])} bd={result.bd} mainResult={result}/>
+                <AgeMemoSection birthYear={Number(result.bd.split("-")[0])} bd={result.bd} mainResult={result} onOpenPerson={openPerson}/>
               </div>
             )}
 
