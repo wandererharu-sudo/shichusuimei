@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { initSync, pullNow, getSyncToken, setSyncToken, getSyncStatus } from "./sync.js";
 
 const STEMS = ["甲","乙","丙","丁","戊","己","庚","辛","壬","癸"];
 const BRANCHES = ["子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥"];
@@ -526,6 +527,131 @@ function SavedMemoPanel({ person, onChanged }) {
 }
 
 // ─── 保存リストタブ ──────────────────────────────────────
+// ─── クラウド同期バー（GitHub非公開リポジトリ） ──────────────────
+function SyncBar() {
+  const [st, setSt] = React.useState(getSyncStatus());
+  const [open, setOpen] = React.useState(false);
+  const [tok, setTok] = React.useState("");
+  const [hasToken, setHasToken] = React.useState(!!getSyncToken());
+  React.useEffect(() => {
+    const h = (e) => setSt(e.detail);
+    window.addEventListener('shichuSyncStatus', h);
+    return () => window.removeEventListener('shichuSyncStatus', h);
+  }, []);
+  const label = !hasToken ? "☁ 同期設定"
+    : st.status === 'syncing' ? "☁ 同期中…"
+    : st.status === 'error' ? "☁ ⚠ エラー"
+    : "☁ 同期✓";
+  const saveToken = () => {
+    if (!tok.trim()) return;
+    setSyncToken(tok); setTok(""); setHasToken(true); setOpen(false);
+    pullNow();
+  };
+  const clearToken = () => {
+    if (!window.confirm('この端末の同期を解除しますか？（クラウドのデータは残ります）')) return;
+    setSyncToken(""); setHasToken(false); setOpen(false);
+  };
+  return (
+    <div style={{position:"relative",display:"inline-block"}}>
+      <button onClick={()=>setOpen(v=>!v)} title={st.msg}
+        style={{background:hasToken?(st.status==='error'?"#fdecec":"#eef8ee"):"#f5f0e8",border:`1px solid ${hasToken?(st.status==='error'?"#d08080":"#80b080"):"#c4a070"}`,color:hasToken?(st.status==='error'?"#a04040":"#2a6a2a"):"#8a6010",padding:"7px 16px",borderRadius:20,fontSize:12,cursor:"pointer"}}>{label}</button>
+      {open && (
+        <div style={{position:"absolute",top:"110%",left:0,zIndex:200,background:"#fff",border:"1px solid #c4a070",borderRadius:10,padding:12,minWidth:290,boxShadow:"0 4px 20px #0003"}}>
+          {hasToken ? (
+            <>
+              <div style={{fontSize:11,color:"#5a4a3a",marginBottom:8}}>この端末は自動同期が有効です。<br/>状態：{st.msg||st.status}</div>
+              <div style={{display:"flex",gap:6}}>
+                <button onClick={()=>{pullNow();setOpen(false);}} style={{padding:"5px 12px",borderRadius:6,background:"#2a7a2a",border:"none",color:"#fff",fontSize:11,cursor:"pointer"}}>今すぐ同期</button>
+                <button onClick={clearToken} style={{padding:"5px 12px",borderRadius:6,background:"#fff",border:"1px solid #d08080",color:"#a04040",fontSize:11,cursor:"pointer"}}>同期を解除</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{fontSize:11,color:"#5a4a3a",marginBottom:6,lineHeight:1.6}}>GitHubトークンを貼り付けると、保存リスト・メモ・家族がこの端末とクラウドで自動同期されます（初回1回だけ）。</div>
+              <input type="password" value={tok} onChange={e=>setTok(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')saveToken();}} placeholder="github_pat_… を貼り付け"
+                style={{width:"100%",boxSizing:"border-box",padding:"6px 8px",border:"1px solid #c8b8a0",borderRadius:6,fontSize:12,marginBottom:8}}/>
+              <button onClick={saveToken} disabled={!tok.trim()} style={{padding:"5px 14px",borderRadius:6,background:tok.trim()?"#2a7a2a":"#ccc",border:"none",color:"#fff",fontSize:11,cursor:tok.trim()?"pointer":"not-allowed",fontWeight:700}}>保存して同期開始</button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── 保存リスト用 家族パネル ──────────────────────────────
+// 鑑定画面の家族情報（shichusuimei_children_${bd}）と同じ保管場所を共有する。
+function familyCountOf(bd) {
+  try { return JSON.parse(localStorage.getItem(`shichusuimei_children_${bd}`)||'[]').length; } catch { return 0; }
+}
+function SavedFamilyPanel({ person, onChanged }) {
+  const childrenKey = `shichusuimei_children_${person.bd}`;
+  const [children, setChildren] = React.useState([]);
+  const [newName, setNewName]     = React.useState("");
+  const [newYear, setNewYear]     = React.useState(String(new Date().getFullYear()-30));
+  const [newMonth, setNewMonth]   = React.useState("1");
+  const [newDay, setNewDay]       = React.useState("1");
+  const [newTime, setNewTime]     = React.useState("");
+  const [newGender, setNewGender] = React.useState("male");
+  const [view, setView]           = React.useState(null); // {member, result}
+
+  React.useEffect(() => {
+    try { const cs = localStorage.getItem(childrenKey); setChildren(cs?JSON.parse(cs):[]); } catch { setChildren([]); }
+  }, [childrenKey]);
+
+  const save = (c) => {
+    setChildren(c);
+    try { localStorage.setItem(childrenKey, JSON.stringify(c)); } catch { /* 容量超過等 */ }
+    if (onChanged) onChanged();
+  };
+  const add = () => {
+    if (!newName.trim()) return;
+    save([...children, {name:newName.trim(), birthYear:Number(newYear), birthMonth:Number(newMonth), birthDay:Number(newDay), birthTime:newTime, gender:newGender}]);
+    setNewName(""); setNewTime("");
+  };
+  const del = (i) => { if (window.confirm(children[i].name+'さんを家族から削除しますか？')) save(children.filter((_,idx)=>idx!==i)); };
+  const openMeishiki = (c) => {
+    try {
+      const bd = `${c.birthYear}-${String(c.birthMonth).padStart(2,'0')}-${String(c.birthDay).padStart(2,'0')}`;
+      setView({ member:c, result: calcAll(c.name, bd, c.birthTime||'', c.gender||'male') });
+    } catch { /* 生年月日不備は無視 */ }
+  };
+
+  return (
+    <div style={{margin:"0 4px 6px 24px",padding:"10px 12px",background:"#f5faf0",border:"1px dashed #8ab070",borderRadius:10}}>
+      {view && <FamilyMeishikiModal member={view.member} memberResult={view.result} onClose={()=>setView(null)}/>}
+      <div style={{fontSize:12,fontWeight:600,color:"#3a6a2a",marginBottom:6}}>👨‍👩‍👧‍👦 {person.name} さんの家族<span style={{fontWeight:400,color:"#7a9a7a",fontSize:10,marginLeft:8}}>鑑定画面の家族情報と共通</span></div>
+      <div style={{display:"flex",gap:4,marginBottom:8,flexWrap:"wrap",alignItems:"center"}}>
+        <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="名前" style={{width:70,padding:"4px 6px",borderRadius:5,border:"1px solid #a0c080",fontSize:11}}/>
+        <select value={newYear} onChange={e=>setNewYear(e.target.value)} style={{padding:"4px",borderRadius:5,border:"1px solid #a0c080",fontSize:11}}>
+          {Array.from({length:101},(_,i)=>new Date().getFullYear()-i).map(y=><option key={y} value={y}>{y}年</option>)}
+        </select>
+        <select value={newMonth} onChange={e=>setNewMonth(e.target.value)} style={{padding:"4px",borderRadius:5,border:"1px solid #a0c080",fontSize:11}}>
+          {Array.from({length:12},(_,i)=>i+1).map(m=><option key={m} value={m}>{m}月</option>)}
+        </select>
+        <select value={newDay} onChange={e=>setNewDay(e.target.value)} style={{padding:"4px",borderRadius:5,border:"1px solid #a0c080",fontSize:11}}>
+          {Array.from({length:31},(_,i)=>i+1).map(d=><option key={d} value={d}>{d}日</option>)}
+        </select>
+        <input type="time" value={newTime} onChange={e=>setNewTime(e.target.value)} style={{padding:"4px",borderRadius:5,border:"1px solid #a0c080",fontSize:11,width:90}}/>
+        <select value={newGender} onChange={e=>setNewGender(e.target.value)} style={{padding:"4px",borderRadius:5,border:"1px solid #a0c080",fontSize:11}}>
+          <option value="male">男</option>
+          <option value="female">女</option>
+        </select>
+        <button onClick={add} disabled={!newName.trim()} style={{padding:"4px 10px",borderRadius:5,background:newName.trim()?"#5a9a5a":"#ccc",border:"none",color:"#fff",fontSize:11,cursor:newName.trim()?"pointer":"not-allowed",fontWeight:700}}>追加</button>
+      </div>
+      {children.length===0 ? (
+        <div style={{fontSize:11,color:"#90a888",padding:"2px 0"}}>家族はまだ登録されていません。名前と生年月日を入れて「追加」してください。</div>
+      ) : children.map((c,i)=>(
+        <div key={i} style={{display:"flex",alignItems:"center",gap:6,padding:"3px 6px",background:"#fff",borderRadius:5,border:"1px solid #c0d8b0",marginBottom:3}}>
+          <span style={{fontSize:11,flex:1,color:"#3a5a3a"}}>{c.name}（{c.birthYear}/{c.birthMonth}/{c.birthDay}{c.birthTime?" "+c.birthTime:""}・{c.gender==="female"?"女":"男"}）</span>
+          <button onClick={()=>openMeishiki(c)} style={{padding:"1px 8px",borderRadius:4,background:"#eef5e8",border:"1px solid #a0c080",color:"#3a6a2a",fontSize:10,cursor:"pointer"}}>命式</button>
+          <button onClick={()=>del(i)} style={{padding:"1px 6px",borderRadius:4,background:"transparent",border:"1px solid #e0a0a0",color:"#c06060",fontSize:9,cursor:"pointer"}}>✕</button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function SavedListTab({ onLoad }) {
   const [list, setList]       = React.useState(savedList());
   const [selected, setSelected] = React.useState([]);
@@ -533,14 +659,19 @@ function SavedListTab({ onLoad }) {
   const [showBoard, setShowBoard] = React.useState(true);
   const [memoOpen, setMemoOpen] = React.useState(null);   // 人生メモパネルを開いている行index
   const [memoTick, setMemoTick] = React.useState(0);      // メモ更新時に件数バッジを再描画
+  const [familyOpen, setFamilyOpen] = React.useState(null); // 家族パネルを開いている行index
+  const [familyTick, setFamilyTick] = React.useState(0);    // 家族更新時に件数バッジを再描画
   const memoCounts = React.useMemo(() => list.map(p=>memoCountOf(p.bd)), [list, memoTick]);
+  const familyCounts = React.useMemo(() => list.map(p=>familyCountOf(p.bd)), [list, familyTick]);
 
-  // タブ表示・保存イベントのたびに最新データを読み込む
+  // タブ表示・保存イベント・クラウド同期のたびに最新データを読み込む
   React.useEffect(() => {
     setList(savedList());
     const handler = () => setList(savedList());
+    const syncHandler = () => { setList(savedList()); setMemoTick(t=>t+1); setFamilyTick(t=>t+1); };
     window.addEventListener('shichuSaved', handler);
-    return () => window.removeEventListener('shichuSaved', handler);
+    window.addEventListener('shichuSynced', syncHandler);
+    return () => { window.removeEventListener('shichuSaved', handler); window.removeEventListener('shichuSynced', syncHandler); };
   }, []);
 
   const reload = () => setList(savedList());
@@ -690,6 +821,7 @@ function SavedListTab({ onLoad }) {
           📤 インポート(.json)
           <input type="file" accept=".json,application/json" onChange={importJSON} style={{display:"none"}}/>
         </label>
+        <SyncBar/>
       </div>
       {list.length===0 ? (
         <div style={{textAlign:"center",padding:32,color:"#7a6e68",fontSize:13}}>保存された人物はいません<br/><span style={{fontSize:11}}>鑑定後「💾 保存」ボタンで追加するか、上の「📤 インポート」でバックアップJSONを取り込めます</span></div>
@@ -724,10 +856,12 @@ function SavedListTab({ onLoad }) {
                   onKeyDown={e=>{if(e.key==='Enter')e.target.blur();}}
                   style={{width:76,fontSize:11,border:"1px solid #e0d4c0",borderRadius:8,padding:"3px 6px",background:p.group?"#fdf0dc":"#fff",color:"#8a6010",flexShrink:0}}/>
                 <button onClick={e=>{e.stopPropagation();setMemoOpen(memoOpen===i?null:i);}} style={{background:memoOpen===i?"#c88a2a":(memoCounts[i]>0?"#fdf0dc":"#f5f0e8"),border:"1px solid #c4a070",borderRadius:20,padding:"3px 10px",fontSize:11,cursor:"pointer",color:memoOpen===i?"#fff":"#8a6010",whiteSpace:"nowrap",fontWeight:memoCounts[i]>0?600:400}}>📝{memoCounts[i]>0?` ${memoCounts[i]}`:" メモ"}</button>
+                <button onClick={e=>{e.stopPropagation();setFamilyOpen(familyOpen===i?null:i);}} style={{background:familyOpen===i?"#5a9a5a":(familyCounts[i]>0?"#eef5e8":"#f5f0e8"),border:"1px solid #8ab070",borderRadius:20,padding:"3px 10px",fontSize:11,cursor:"pointer",color:familyOpen===i?"#fff":"#3a6a2a",whiteSpace:"nowrap",fontWeight:familyCounts[i]>0?600:400}}>👨‍👩‍👧‍👦{familyCounts[i]>0?` ${familyCounts[i]}`:""}</button>
                 <button onClick={e=>{e.stopPropagation();onLoad(p);}} style={{background:"#f5f0e8",border:"1px solid #c4a070",borderRadius:20,padding:"3px 10px",fontSize:11,cursor:"pointer",color:"#8a6010",whiteSpace:"nowrap"}}>📋 開く</button>
                 <button onClick={e=>{e.stopPropagation();if(window.confirm(p.name+'を削除しますか？'))doDelete(i);}} style={{background:"none",border:"1px solid #e0d8c8",borderRadius:20,padding:"3px 8px",fontSize:11,cursor:"pointer",color:"#aaa"}}>✕</button>
               </div>
               {memoOpen===i && <SavedMemoPanel person={p} onChanged={()=>setMemoTick(t=>t+1)}/>}
+              {familyOpen===i && <SavedFamilyPanel person={p} onChanged={()=>setFamilyTick(t=>t+1)}/>}
               </React.Fragment>
             ))}
           </div>
@@ -3840,6 +3974,8 @@ function App() {
     if(pw==="Harukun-0120"){ setAuthed(true); try{ localStorage.setItem("shichusuimei_auth","1"); }catch{ sessionStorage.setItem("shichusuimei_auth","1"); } }
     else setPwError(true);
   };
+  // GitHub自動同期の起動（トークン設定済みなら起動時にクラウドから取得）
+  React.useEffect(()=>{ initSync(); },[]);
   // スマートフォン・iPad対応
   React.useEffect(()=>{
     let meta = document.querySelector('meta[name="viewport"]');
