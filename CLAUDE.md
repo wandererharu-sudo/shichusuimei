@@ -20,8 +20,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## デプロイ
 - GitHub Pages: https://wandererharu-sudo.github.io/shichusuimei/
-- ローカルリポジトリ: `C:\Users\wande\OneDrive\ドキュメント\GitHub\shichusuimei\`
-- HTML版（v5）とReact版が共存
+- ローカルリポジトリ（React版・正）: `C:\Users\wande\shichusuimei\`
+- 旧HTML版（v5/v6）: `C:\Users\wande\OneDrive\ドキュメント\GitHub\shichusuimei\`（`html-legacy` ブランチ・退避済み）
+- 公開URLは 2026-05-23 以降 React 版に置き換わっており、HTML 版は同URLでは配信していない
+
+## クラウド同期（2026-07-07 追加）
+- `src/sync.js` — GitHub非公開リポジトリ `wandererharu-sudo/shichusuimei-data` の `data.json` と自動同期
+- 同期対象：`shichuPersons`（保存リスト）／`shichusuimei_memo_*`（人生メモ）／`shichusuimei_children_*`（家族）
+- トークンは端末ごとに localStorage（`shichusuimei_gh_token`）へ保存。コードには書かない
+- 動き：起動時・タブ復帰時に pull ／ 対象キーへの書き込み3秒後に自動 push ／ 初回は「データを持つ端末側が正」／ 未送信修正がある端末は push 優先（後勝ち）
+- 設定UI：保存リストタブの「☁ 同期設定」（SyncBar コンポーネント）
 
 ## App.jsx の構造（上から順）
 
