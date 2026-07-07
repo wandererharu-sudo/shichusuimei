@@ -134,6 +134,37 @@ export async function pushNow(keepalive = false) {
   }
 }
 
+// 初回同期用：クラウド側にしかないデータをローカルへ追加してから送信する
+// （どちらか一方を正にすると、もう一方のデータが消えるため必ず統合する）
+function mergeRemoteIntoLocal(data) {
+  applying = true;
+  try {
+    let persons = [];
+    try { persons = JSON.parse(localStorage.getItem(SAVE_KEY) || '[]'); } catch { persons = []; }
+    const key = (p) => p.name + '|' + p.bd;
+    const have = new Set(persons.map(key));
+    (data.persons || []).forEach((p) => { if (p && p.name && p.bd && !have.has(key(p))) persons.push(p); });
+    localStorage.setItem(SAVE_KEY, JSON.stringify(persons));
+    Object.entries(data.memos || {}).forEach(([bd, arr]) => {
+      if (!Array.isArray(arr)) return;
+      let cur = [];
+      try { cur = JSON.parse(localStorage.getItem('shichusuimei_memo_' + bd) || '[]'); } catch { cur = []; }
+      arr.forEach((m) => { if (m && m.year && m.text && !cur.find((x) => x.year === m.year && x.text === m.text)) cur.push(m); });
+      cur.sort((a, b) => a.year - b.year);
+      try { localStorage.setItem('shichusuimei_memo_' + bd, JSON.stringify(cur)); } catch { /* 容量超過等 */ }
+    });
+    Object.entries(data.children || {}).forEach(([bd, arr]) => {
+      if (Array.isArray(arr) && !localStorage.getItem('shichusuimei_children_' + bd)) {
+        try { localStorage.setItem('shichusuimei_children_' + bd, JSON.stringify(arr)); } catch { /* 容量超過等 */ }
+      }
+    });
+  } finally {
+    applying = false;
+  }
+  window.dispatchEvent(new Event('shichuSynced'));
+  window.dispatchEvent(new Event('shichuSaved'));
+}
+
 // クラウド→ローカルへ取得（状況に応じて送信に切り替える）
 export async function pullNow() {
   const token = getSyncToken();
@@ -151,8 +182,12 @@ export async function pullNow() {
     }
     const syncedAt = localStorage.getItem(SYNCED_KEY);
     const dirty = localStorage.getItem(DIRTY_KEY) === '1';
-    // 初回同期：この端末にデータがあれば端末側を正として送信する
-    if (!syncedAt && localPersons.length) { await pushNow(); return; }
+    // 初回同期：端末とクラウドの両方にデータがある場合は統合してから送信する
+    if (!syncedAt && localPersons.length) {
+      mergeRemoteIntoLocal(JSON.parse(b64decode(remote.content)));
+      await pushNow();
+      return;
+    }
     // 未送信の修正がある：送信を優先（後勝ち）
     if (dirty) { await pushNow(); return; }
     const data = JSON.parse(b64decode(remote.content));
