@@ -545,6 +545,33 @@ function SavedListTab({ onLoad }) {
 
   const reload = () => setList(savedList());
 
+  // ── グループ（カテゴリー）分け ──
+  const [groupFilter, setGroupFilter] = React.useState('all'); // 'all' | '__none__' | グループ名
+  // 旧アプリのメモ「／グループ：○○」から初期グループを復元（group未設定の人のみ）
+  React.useEffect(() => {
+    const l = savedList(); let changed = false;
+    l.forEach(p=>{
+      if (p.group !== undefined) return;
+      let g = '';
+      try {
+        const ms = JSON.parse(localStorage.getItem(`shichusuimei_memo_${p.bd}`)||'[]');
+        for (const m of ms) { const mt = /グループ[：:]\s*([^\s／、,]+)/.exec(m.text||''); if (mt) { g = mt[1]; break; } }
+      } catch { /* 破損データは無視 */ }
+      if (g === '未分類') g = '';
+      p.group = g; changed = true;
+    });
+    if (changed) { saveList(l); setList(l.slice()); }
+  }, []);
+  const changeGroup = (i, g) => {
+    const l = savedList();
+    if (!l[i] || (l[i].group||'') === g.trim()) return;
+    l[i].group = g.trim(); saveList(l); reload();
+  };
+  const groups = React.useMemo(()=>[...new Set(list.map(p=>p.group).filter(Boolean))], [list]);
+  const items = list.map((p,i)=>({p,i})).filter(({p}) =>
+    groupFilter==='all' ? true : groupFilter==='__none__' ? !p.group : p.group===groupFilter
+  );
+
   const toggle = (i) => setSelected(prev =>
     prev.includes(i) ? prev.filter(x=>x!==i) : [...prev,i]
   );
@@ -595,7 +622,7 @@ function SavedListTab({ onLoad }) {
               dayEl: r.pillars.day.stemEl,
               pillars: { year: r.pillars.year, month: r.pillars.month, day: r.pillars.day },
               stemEc: r.stemEc, branchEc: r.branchEc, ec: r.ec,
-              mbti: np.mbti||'', savedAt: np.savedAt||new Date().toISOString()
+              mbti: np.mbti||'', group: np.group||'', savedAt: np.savedAt||new Date().toISOString()
             };
           } catch { return null; }
         };
@@ -628,11 +655,11 @@ function SavedListTab({ onLoad }) {
   const downloadCSV = () => {
     const l = savedList();
     if (!l.length) return;
-    const header = '名前,生年月日,性別,日主,年柱,月柱,日柱,木,火,土,金,水';
+    const header = '名前,生年月日,性別,グループ,日主,年柱,月柱,日柱,木,火,土,金,水';
     const rows = l.map(p=>{
       const yr=p.pillars?.year, mo=p.pillars?.month, dy=p.pillars?.day;
       return [
-        p.name, p.bd, p.gender==='male'?'男性':'女性', p.dayEl||'',
+        p.name, p.bd, p.gender==='male'?'男性':'女性', p.group||'', p.dayEl||'',
         yr?yr.stem+yr.branch:'', mo?mo.stem+mo.branch:'', dy?dy.stem+dy.branch:'',
         p.ec?.木||0,p.ec?.火||0,p.ec?.土||0,p.ec?.金||0,p.ec?.水||0
       ].join(',');
@@ -668,9 +695,22 @@ function SavedListTab({ onLoad }) {
         <div style={{textAlign:"center",padding:32,color:"#7a6e68",fontSize:13}}>保存された人物はいません<br/><span style={{fontSize:11}}>鑑定後「💾 保存」ボタンで追加するか、上の「📤 インポート」でバックアップJSONを取り込めます</span></div>
       ) : (
         <>
-          {showBoard && <FamilyFortuneBoard list={list}/>}
+          {groups.length>0 && (
+            <div style={{marginBottom:10,display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+              <span style={{fontSize:11,color:"#8a7a60"}}>グループ：</span>
+              <button onClick={()=>setGroupFilter('all')} style={{background:groupFilter==='all'?"#c88a2a":"#f5f0e8",color:groupFilter==='all'?"#fff":"#8a5a1a",border:"1px solid #c88a2a",padding:"4px 12px",borderRadius:20,fontSize:11,cursor:"pointer",fontWeight:600}}>全員 {list.length}</button>
+              {groups.map(g=>(
+                <button key={g} onClick={()=>setGroupFilter(g)} style={{background:groupFilter===g?"#c88a2a":"#f5f0e8",color:groupFilter===g?"#fff":"#8a5a1a",border:"1px solid #c88a2a",padding:"4px 12px",borderRadius:20,fontSize:11,cursor:"pointer",fontWeight:600}}>{g} {list.filter(p=>p.group===g).length}</button>
+              ))}
+              {list.some(p=>!p.group) && (
+                <button onClick={()=>setGroupFilter('__none__')} style={{background:groupFilter==='__none__'?"#c88a2a":"#f5f0e8",color:groupFilter==='__none__'?"#fff":"#8a5a1a",border:"1px solid #c88a2a",padding:"4px 12px",borderRadius:20,fontSize:11,cursor:"pointer",fontWeight:600}}>未分類 {list.filter(p=>!p.group).length}</button>
+              )}
+            </div>
+          )}
+          {showBoard && <FamilyFortuneBoard list={items.map(x=>x.p)}/>}
+          <datalist id="shichu-groups">{groups.map(g=><option key={g} value={g}/>)}</datalist>
           <div style={{display:"flex",flexDirection:"column",gap:6}}>
-            {list.map((p,i)=>(
+            {items.map(({p,i})=>(
               <React.Fragment key={i}>
               <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 12px",background:selected.includes(i)?"#fdf0e0":"white",borderRadius:10,border:`1px solid ${selected.includes(i)?"#c4a070":"#e8e0d0"}`,cursor:"pointer"}} onClick={()=>toggle(i)}>
                 <input type="checkbox" checked={selected.includes(i)} onChange={()=>toggle(i)} onClick={e=>e.stopPropagation()} style={{width:16,height:16,accentColor:"#c4973a",flexShrink:0}}/>
@@ -678,6 +718,11 @@ function SavedListTab({ onLoad }) {
                   <div style={{fontSize:13,fontWeight:600,color:"#1a1410"}}>{p.name}</div>
                   <div style={{fontSize:11,color:"#7a6e68"}}>{p.bd.replace(/-/g,'/')} · {p.gender==='male'?'男性':'女性'} · 日主：<b style={{color:GCOLS[p.dayEl]||"#888"}}>{p.dayEl}</b></div>
                 </div>
+                <input list="shichu-groups" key={`g${i}-${p.group||''}`} defaultValue={p.group||''} placeholder="グループ"
+                  onClick={e=>e.stopPropagation()}
+                  onBlur={e=>changeGroup(i, e.target.value)}
+                  onKeyDown={e=>{if(e.key==='Enter')e.target.blur();}}
+                  style={{width:76,fontSize:11,border:"1px solid #e0d4c0",borderRadius:8,padding:"3px 6px",background:p.group?"#fdf0dc":"#fff",color:"#8a6010",flexShrink:0}}/>
                 <button onClick={e=>{e.stopPropagation();setMemoOpen(memoOpen===i?null:i);}} style={{background:memoOpen===i?"#c88a2a":(memoCounts[i]>0?"#fdf0dc":"#f5f0e8"),border:"1px solid #c4a070",borderRadius:20,padding:"3px 10px",fontSize:11,cursor:"pointer",color:memoOpen===i?"#fff":"#8a6010",whiteSpace:"nowrap",fontWeight:memoCounts[i]>0?600:400}}>📝{memoCounts[i]>0?` ${memoCounts[i]}`:" メモ"}</button>
                 <button onClick={e=>{e.stopPropagation();onLoad(p);}} style={{background:"#f5f0e8",border:"1px solid #c4a070",borderRadius:20,padding:"3px 10px",fontSize:11,cursor:"pointer",color:"#8a6010",whiteSpace:"nowrap"}}>📋 開く</button>
                 <button onClick={e=>{e.stopPropagation();if(window.confirm(p.name+'を削除しますか？'))doDelete(i);}} style={{background:"none",border:"1px solid #e0d8c8",borderRadius:20,padding:"3px 8px",fontSize:11,cursor:"pointer",color:"#aaa"}}>✕</button>
