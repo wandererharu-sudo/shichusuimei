@@ -66,3 +66,22 @@ button:focus-visible {
     background-color: #f9f9f9;
   }
 }
+
+/* ── 印刷（🖨 鑑定書を印刷）用 ── */
+@media print {
+  .no-print,
+  button, input, select, textarea {
+    display: none !important;
+  }
+  .print-break-before {
+    break-before: page;
+    page-break-before: always;
+  }
+  /* 大運・流年など横に広い表は印刷時だけ少し縮めて右端切れを防ぐ */
+  .print-shrink {
+    zoom: 0.88;
+  }
+  body {
+    background: #fff !important;
+  }
+}

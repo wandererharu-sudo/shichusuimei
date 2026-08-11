@@ -57,17 +57,26 @@ function getKuubou(si, bi) {
   const jun = ((bi - si) % 12 + 12) % 12;
   return [(jun + 10) % 12, (jun + 11) % 12];
 }
+// cau＝落とし穴（長所と併記する）。星に固定された吉凶はなく、同じ性質が裏目にも出るという考え方による。
+// 出典は docs/変更履歴.md 参照。素材のない比肩・劫財・偏財には意図的に置いていない（推測で書かない）。
 const TSUHEN_DESC = {
   比肩:{kw:"独立・自立",txt:"意志が強く独立心旺盛。自分のペースを大切にし、一人で物事を成し遂げる力があります。"},
   劫財:{kw:"協力・競争",txt:"仲間と力を合わせる場面で輝きます。社交的で人との繋がりを大切にしますが、時に感情的になりやすい面も。"},
-  食神:{kw:"表現・楽しむ",txt:"豊かな表現力と創造性を持ち、自分の才能を自然に発揮できます。"},
-  傷官:{kw:"才能・反骨心",txt:"鋭い感性と高い知性が際立ちます。ルールに縛られず、自由な発想で道を切り拓く力があります。"},
+  食神:{kw:"表現・楽しむ",txt:"豊かな表現力と創造性を持ち、自分の才能を自然に発揮できます。",
+    cau:"その場かぎりの提供にとどまると、せっかくの才能が労働の切り売りになりがちです。作品や仕組みとして残す意識が活きます。"},
+  傷官:{kw:"才能・反骨心",txt:"鋭い感性と高い知性が際立ちます。ルールに縛られず、自由な発想で道を切り拓く力があります。",
+    cau:"表現をその都度売る形だと消耗しやすい星です。積み上げた表現を形にして残すと、力が蓄積されていきます。"},
   偏財:{kw:"社交・財運",txt:"人付き合いが上手く、多くの人から慕われます。広い人脈から財を引き寄せる才能があります。"},
-  正財:{kw:"堅実・誠実",txt:"コツコツと積み上げる誠実さが持ち味。計画的で安定した財運を持ちます。"},
-  偏官:{kw:"行動・克服",txt:"困難を力で突破するエネルギーを持ちます。強いリーダーシップを発揮できます。"},
-  正官:{kw:"責任・品格",txt:"責任感が強く、社会的なルールを重んじます。組織の中で力を発揮します。"},
-  偏印:{kw:"直感・探求",txt:"鋭い直感と旺盛な知的好奇心を持ちます。専門分野を極める力があります。"},
-  正印:{kw:"包容・知性",txt:"深い知性と温かい包容力を兼ね備えます。周囲の人を育てる才能があります。"},
+  正財:{kw:"堅実・誠実",txt:"コツコツと積み上げる誠実さが持ち味。計画的で安定した財運を持ちます。",
+    cau:"正確さや公平さへのこだわりが強く出ると、本来の目的（楽しさ・効率）を見失うことがあります。"},
+  偏官:{kw:"行動・克服",txt:"困難を力で突破するエネルギーを持ちます。強いリーダーシップを発揮できます。",
+    cau:"ゼロから生み出すことは苦手な面があります。すでにあるものを引き継ぐ、仕組みにして回す方が力を発揮します。"},
+  正官:{kw:"責任・品格",txt:"責任感が強く、社会的なルールを重んじます。組織の中で力を発揮します。",
+    cau:"ルールを守ること自体が目的になりやすく、前例のない場面で動けなくなることがあります。"},
+  偏印:{kw:"直感・探求",txt:"鋭い直感と旺盛な知的好奇心を持ちます。専門分野を極める力があります。",
+    cau:"数値化しにくい価値を扱う星のため、無償提供や安売りに流れがちです。準備期間が長引き、なかなか世に出られないことも。"},
+  正印:{kw:"包容・知性",txt:"深い知性と温かい包容力を兼ね備えます。周囲の人を育てる才能があります。",
+    cau:"完璧な裏付けを集めることが目的になり、行動が遅れがちです。お金にしにくい価値を守る星のため、安売りにも流れやすい面があります。"},
 };
 const SEIKAKU = {"甲":{kw:"大樹・開拓者",intro:"甲木の人は、まっすぐに天へ向かって伸びる大樹のような存在です。",p:["強い意志と理想を持ち、一度決めた目標に向かってぶれることなく進んでいく力があります。","リーダーシップを発揮する場面では頼もしい存在となり、周囲から自然と尊敬を集めます。","頑固さや柔軟性の欠如が課題になることもあります。変化を恐れず、周囲の意見に耳を傾ける柔軟さを身につけることで、さらに大きな成長を遂げられます。"]},"乙":{kw:"草花・適応の人",intro:"乙木の人は、しなやかに風に揺れる草花のような存在です。",p:["繊細な感受性と高い共感能力を持ち、場の空気を読む能力に優れています。","美的センスが豊かで、芸術や文化への関心が深い傾向があります。","周囲に合わせすぎるあまり自分の意見を主張できなくなることがあります。自分の軸をしっかり持つことが大切です。"]},"丙":{kw:"太陽・情熱家",intro:"丙火の人は、全てを明るく照らす太陽のような存在です。",p:["エネルギッシュで明朗快活、どんな場所でもその存在感で周囲を明るくします。","情熱的で行動力があり、アイデアを素早く形にしていく力に優れています。","感情の起伏が激しくなりやすく、一つのことを継続する忍耐力を意識的に鍛えることが成長への鍵となります。"]},"丁":{kw:"灯火・洞察者",intro:"丁火の人は、暗闇を静かに照らす灯火のような存在です。",p:["知性的で洞察力に優れ、物事の本質を見抜く鋭い眼力を持っています。","内向的に見えることもありますが、その内側には強い情熱と信念を秘めています。","思慮深いゆえに行動が慎重になりすぎることがあります。積極的に世界に関わっていくことが大切です。"]},"戊":{kw:"大山・安定の柱",intro:"戊土の人は、どっしりと構えた大山のような存在です。",p:["安定感と信頼性が際立ち、周囲から頼りにされる存在です。長期的な視野で着実に成果を上げます。","度量が大きく、様々な人や意見を受け入れる包容力があります。","変化への対応が遅くなりがちで、新しいことへの挑戦に臆してしまうことも。柔軟さを意識しましょう。"]},"己":{kw:"田畑・育む人",intro:"己土の人は、万物を育む肥沃な田畑のような存在です。",p:["細やかな気配りと面倒見の良さが特徴で、周囲の人を自然とサポートする優しさを持っています。","協調性が高く、チームの調和を保つことを得意とします。","自己主張が苦手で、他人に振り回されやすい傾向があります。自分の意見をはっきり伝えることも重要です。"]},"庚":{kw:"鋭刃・改革者",intro:"庚金の人は、不純物を断ち切る鋭い刃のような存在です。",p:["意志が強く決断力があり、論理的で合理的な思考を持ちます。","正直で率直な物言いは真実を追求する誠実さの表れです。義理を重んじる責任感の強さも持ち合わせています。","頑固で融通が利かない面が出ることがあります。人の感情に寄り添う優しさを意識することが大切です。"]},"辛":{kw:"宝玉・繊細な輝き",intro:"辛金の人は、丁寧に磨かれた宝石のような存在です。",p:["高い審美眼と繊細な感性を持ち、美しさや品質へのこだわりが強いです。","鋭い観察眼を持ち、小さな変化や違和感にいち早く気づく能力があります。","プライドが高く傷つきやすい繊細な一面もあります。適度な余裕を持つことが心の安定につながります。"]},"壬":{kw:"大海・包容の人",intro:"壬水の人は、全てを包み込む大海原のような存在です。",p:["スケールの大きな思考と広い視野を持ち、知的好奇心が旺盛です。","柔軟性が高く、どんな環境にも順応できる適応力の高さが魅力です。","気が向いた方向に流れやすく、継続性に欠けることがあります。深い関係を築いていくことで人生が豊かになります。"]},"癸":{kw:"雨露・洞察の知性",intro:"癸水の人は、大地に静かに染み渡る雨露のような存在です。",p:["鋭い直感と高い知性を兼ね備え、物事の深層まで洞察する力があります。","献身的で思いやりがあり、困っている人を見ると放っておけない優しさを持っています。","内気で自分の気持ちを表現することが苦手な面があります。信頼できる人に心を開いていくことで、その豊かな内面が輝きを放つでしょう。"]}};
 
@@ -243,18 +252,28 @@ function calcAll(name, bd, bt, gender) {
     });
   });
   // 三合・方合の化合チェック（地支3柱が揃う場合）
+  // 【2026-07-27】地支が3つ揃うだけでは化けない。天干にその五行が出ていて初めて化合する（＝干が引く）。
+  // 引いていない場合は「合しているが化けない」として五行を動かさず、gokaNoHiki に記録する。
+  // 出典：SOUYAチャンネル 2026-05-12（なるほどメモ#7）。詳細は docs/変更履歴.md
   const SANGOU_GOKA=[[0,4,8,"水"],[2,6,10,"火"],[11,3,7,"木"],[5,9,1,"金"]];
   const HOUGOU_GOKA=[[2,3,4,"木"],[5,6,7,"火"],[8,9,10,"金"],[11,0,1,"水"]];
   const branchIdxList=activePillars.map(p=>p.branchIdx);
+  const stemElList=activePillars.map(p=>p.stemEl);
   const gokaMoveBranch={}; // pillarIdx -> {from:五行, to:五行}
-  [...SANGOU_GOKA,...HOUGOU_GOKA].forEach(([b1,b2,b3,newEl])=>{
-    if([b1,b2,b3].every(b=>branchIdxList.includes(b))){
-      activePillars.forEach((p,i)=>{
-        if([b1,b2,b3].includes(p.branchIdx)&&p.branchEl!==newEl){
-          gokaMoveBranch[i]={from:p.branchEl,to:newEl,origEl:p.branchEl};
-        }
-      });
+  const gokaNoHiki=[];     // 揃ったが天干が引かず化けなかった合
+  [...SANGOU_GOKA,...HOUGOU_GOKA].forEach(([b1,b2,b3,newEl],gi)=>{
+    if(![b1,b2,b3].every(b=>branchIdxList.includes(b)))return;
+    const kind=gi<SANGOU_GOKA.length?"三合":"方合";
+    const label=[b1,b2,b3].map(b=>BRANCHES[b]).join("");
+    if(!stemElList.includes(newEl)){
+      gokaNoHiki.push({kind,label,el:newEl});
+      return;
     }
+    activePillars.forEach((p,i)=>{
+      if([b1,b2,b3].includes(p.branchIdx)&&p.branchEl!==newEl){
+        gokaMoveBranch[i]={from:p.branchEl,to:newEl,origEl:p.branchEl};
+      }
+    });
   });
   // 化合で移動: 元の五行を減らして新しい五行を増やす（stemEc/branchEcも更新）
   Object.entries(gokaMoveStem).forEach(([i,{from,to}])=>{
@@ -268,7 +287,7 @@ function calcAll(name, bd, bt, gender) {
   const ryunen=calcRyunen(cy-2,10,dp.stemIdx);
   const youjin=calcYoujin(ec, dp.stemEl);
   const shinSatsu = calcShinSatsu(dp.stemIdx, dp.branchIdx, yp.branchIdx, mp.branchIdx, mp.stemIdx, [yp,mp,dp,hp].filter(Boolean).map(p=>p.branchIdx), [yp,mp,dp,hp].filter(Boolean).map(p=>p.stemIdx));
-  return {name,bd,bt,gender,pillars,tsuhen,junishi,zokan,ec,stemEc,branchEc,daiun,ryunen,youjin,shinSatsu,gokaMoveStem,gokaMoveBranch};
+  return {name,bd,bt,gender,pillars,tsuhen,junishi,zokan,ec,stemEc,branchEc,daiun,ryunen,youjin,shinSatsu,gokaMoveStem,gokaMoveBranch,gokaNoHiki};
 }
 function calcUnnenKankei(targetBi, targetSi, meishikiBis, daySi) {
   const BN = BRANCHES;
@@ -340,19 +359,31 @@ function getMbti(name, bd) {
 // 「かみやまはるのり 1969年1月20日 男性」→ {name, year, month, day, gender}
 // 和暦（昭和・平成・令和／元年）にも対応。日付が無ければ name に全文が入る
 function parseVoiceKantei(raw) {
-  const t = (raw||'').replace(/[\s\u3000、。．,.]/g, '');
-  let year=null, month=null, day=null, dateStart=-1;
+  // 全角英数を半角に、句読点と空白を除去（音声認識・iOSキーボードのマイクは全角数字を返すことがある）
+  let t = (raw||'').replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+  t = t.replace(/[\s　、。．,.]/g, '');
+  let year=null, month=null, day=null, hour=null, minute=null, dateStart=-1, dateEnd=-1;
   const g = /(\d{4})年の?(\d{1,2})月の?(\d{1,2})日/.exec(t);
   const w = /(昭和|平成|令和)(元|\d{1,2})年の?(\d{1,2})月の?(\d{1,2})日/.exec(t);
-  if (g) { year=+g[1]; month=+g[2]; day=+g[3]; dateStart=g.index; }
+  if (g) { year=+g[1]; month=+g[2]; day=+g[3]; dateStart=g.index; dateEnd=g.index+g[0].length; }
   else if (w) {
     year = ({昭和:1925,平成:1988,令和:2018})[w[1]] + (w[2]==='元'?1:+w[2]);
-    month=+w[3]; day=+w[4]; dateStart=w.index;
+    month=+w[3]; day=+w[4]; dateStart=w.index; dateEnd=w.index+w[0].length;
+  }
+  // 時間：「10時30分」「午前10時」「午後2時15分」「10時」に対応
+  const tm = /(午前|午後|AM|PM|am|pm)?(\d{1,2})時(?:(\d{1,2})分)?/.exec(dateEnd>0 ? t.slice(dateEnd) : t);
+  if (tm) {
+    let h = +tm[2];
+    const mi = tm[3] ? +tm[3] : 0;
+    const ampm = tm[1];
+    if ((ampm==='午後'||ampm==='PM'||ampm==='pm') && h<12) h += 12;
+    if ((ampm==='午前'||ampm==='AM'||ampm==='am') && h===12) h = 0;
+    if (h>=0 && h<=23 && mi>=0 && mi<=59) { hour = h; minute = mi; }
   }
   const gender = /女/.test(t) ? 'female' : /男/.test(t) ? 'male' : null;
   let name = dateStart>0 ? t.slice(0,dateStart) : (year!==null ? '' : t);
   name = name.replace(/を?(占って|うらなって|鑑定して?|見て|みて)$/,'').replace(/(さん|様|さま|君|くん|ちゃん)$/,'');
-  return { name, year, month, day, gender };
+  return { name, year, month, day, hour, minute, gender };
 }
 // 認識テキストから保存リストの人物を探す（「〇〇を占って」の名前呼び出し用）
 function matchSavedPerson(raw) {
@@ -1276,6 +1307,11 @@ function TsuhenJunishiSection({tsuhen, junishi}) {
                     <span style={{fontSize:10,color:"#a07840",background:"#f0e0c0",padding:"1px 7px",borderRadius:10,border:"1px solid #d4b89666"}}>{d.kw}</span>
                   </div>
                   <p style={{fontSize:11,color:"#6a5a44",lineHeight:1.7,margin:0}}>{d.txt}</p>
+                  {d.cau && (
+                    <p style={{fontSize:10,color:"#8a6050",lineHeight:1.7,margin:"6px 0 0",paddingTop:6,borderTop:"1px dashed #d4b89666"}}>
+                      <span style={{color:"#a56a4a",fontWeight:700}}>落とし穴 </span>{d.cau}
+                    </p>
+                  )}
                 </div>
               );
             })}
@@ -2229,6 +2265,11 @@ function SeikakuSection({stem, seikaku, tsuhen, junishi}) {
                   <span style={{fontSize:10,color:"#a07840",background:"#f0e0c0",padding:"1px 7px",borderRadius:10,border:"1px solid #d4b89666"}}>{d.kw}</span>
                 </div>
                 <p style={{fontSize:13,lineHeight:1.9,color:"#4a3828",margin:0}}>{d.txt}</p>
+                {d.cau && (
+                  <p style={{fontSize:12,lineHeight:1.9,color:"#7a5648",margin:"6px 0 0",background:"#fdf6f2",border:"1px solid #e8d0c4",borderRadius:6,padding:"7px 11px"}}>
+                    <span style={{color:"#a56a4a",fontWeight:700}}>落とし穴 </span>{d.cau}
+                  </p>
+                )}
               </div>
             );
           })}
@@ -2286,6 +2327,71 @@ function YoujinSection({youjin}) {
   );
 }
 
+// ─── 五行を補う食べ物 ────────────────────────────────────
+// 出典：マニアック東洋占い 2026-04-17「五行別開運フード」（なるほどメモ#5）
+// 判定：0個＝少ない／1〜2個＝バランス良好／3個以上＝多く、剋される側の五行が弱る
+const GOGYOU_FOOD = {
+  木:{taste:"酸味・香り",items:"バジル・パセリ・ミントなどのハーブ",why:"芽吹く力を補う。自分で育てるところから始めると、より生活になじむ"},
+  火:{taste:"苦み",items:"コーヒー・カカオ",why:"生の豆を焙煎して香りを引き出す行為そのものが、火のチャージになる",note:"砂糖入りのチョコレートではなく、カカオそのものを"},
+  土:{taste:"甘み・発酵",items:"味噌・ぬか漬け・納豆などの発酵食品",why:"微生物が時間をかけて変えていく仕組みが、大地そのもの"},
+  金:{taste:"辛み",items:"スパイス",why:"停滞した木を切り裂いて、巡りを良くする"},
+  水:{taste:"塩み",items:"昆布・若布・ひじきなどの海藻",why:"出汁を自分で取るのも良い",note:"あわせて良質な塩を。精製塩ではなく天然のものを"},
+};
+function KaiunFoodSection({ec, youjin}) {
+  if(!ec) return null;
+  const COLORS = {木:"#7ecf6e",火:"#f07070",土:"#d4a84b",金:"#c0c8e0",水:"#6ab0e8"};
+  const KO = {木:"土",火:"金",土:"水",金:"木",水:"火"};
+  const lacking = Object.keys(GOGYOU_FOOD).filter(e=>(ec[e]||0)===0);
+  const excess  = Object.keys(GOGYOU_FOOD).filter(e=>(ec[e]||0)>=3);
+  // 用神・喜神にあたる五行を先に並べる（そこから補うのが優先のため）
+  const rank = e => (e===youjin?.youjinEl ? 0 : e===youjin?.kijiinEl ? 1 : 2);
+  const sorted = [...lacking].sort((a,b)=>rank(a)-rank(b));
+  return (
+    <div style={{background:"#f7faf5",border:"1px solid #c8d4b8",borderRadius:10,padding:"14px 16px"}}>
+      {sorted.length>0 ? (
+        <>
+          <div style={{fontSize:12,color:"#4a6a3a",fontWeight:700,marginBottom:10,letterSpacing:1}}>
+            命式に無い五行（{sorted.join("・")}）を、日々の食べ物で補えます
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:10}}>
+            {sorted.map(el=>{
+              const f = GOGYOU_FOOD[el]; const c = COLORS[el];
+              const isY = el===youjin?.youjinEl, isK = el===youjin?.kijiinEl;
+              return (
+                <div key={el} style={{padding:"11px 14px",borderRadius:8,background:"#fff",border:`1px solid ${c}55`}}>
+                  <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:6,flexWrap:"wrap"}}>
+                    <span style={{fontSize:19,fontWeight:700,color:c}}>{el}</span>
+                    <span style={{fontSize:10,color:"#7a6a55",background:"#f2efe6",padding:"1px 7px",borderRadius:10}}>{f.taste}</span>
+                    {isY && <span style={{fontSize:10,color:"#fff",background:c,padding:"1px 8px",borderRadius:10}}>用神・最優先</span>}
+                    {isK && <span style={{fontSize:10,color:c,border:`1px solid ${c}88`,padding:"1px 8px",borderRadius:10}}>喜神</span>}
+                  </div>
+                  <div style={{fontSize:13,fontWeight:700,color:"#3a4a2a",marginBottom:4}}>{f.items}</div>
+                  <p style={{fontSize:11,color:"#5a6a4a",lineHeight:1.7,margin:0}}>{f.why}</p>
+                  {f.note && <p style={{fontSize:10,color:"#8a7050",lineHeight:1.6,margin:"5px 0 0"}}>※ {f.note}</p>}
+                </div>
+              );
+            })}
+          </div>
+        </>
+      ) : (
+        <div style={{fontSize:12,color:"#4a6a3a",lineHeight:1.9}}>五行に0個のものはありません。大きく欠けたところがないバランスです。</div>
+      )}
+      {excess.length>0 && (
+        <div style={{marginTop:12,paddingTop:10,borderTop:"1px dashed #c8d4b8",fontSize:11,color:"#7a5648",lineHeight:1.8}}>
+          {excess.map(el=>(
+            <div key={el}>
+              <span style={{fontWeight:700,color:COLORS[el]}}>{el}が{ec[el]}つ</span>
+              あり多めです。{el}は{KO[el]}を剋すため、<strong>{KO[el]}がさらに弱りやすい</strong>状態です。
+            </div>
+          ))}
+        </div>
+      )}
+      <div style={{marginTop:10,fontSize:10,color:"#8a9a7a",lineHeight:1.6}}>
+        食べ方そのものを趣味として深掘りすると、暮らしのなかに自然になじみます。
+      </div>
+    </div>
+  );
+}
 
 // ─── クリックで意味が出るツールチップ ────────────────────────
 function ClickTooltip({label, desc, kw, color}) {
@@ -2438,7 +2544,7 @@ function FutureFortuneSection({result, globalApiKey, setGlobalApiKey}) {
         method: "POST",
         headers: {"Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true"},
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
+          model: "claude-sonnet-5",
           max_tokens: 2000,
           messages: [{role: "user", content: buildPrompt()}]
         })
@@ -2474,7 +2580,7 @@ function FutureFortuneSection({result, globalApiKey, setGlobalApiKey}) {
 
   if (!fortune && !loading) {
     return (
-      <div style={{background:"#fdf8f2",border:"1px dashed #c4a070",borderRadius:12,padding:"20px"}}>
+      <div className="no-print" style={{background:"#fdf8f2",border:"1px dashed #c4a070",borderRadius:12,padding:"20px"}}>
         {/* 年選択チェックボックス（鑑定前から表示） */}
         {visibleYears && (
           <div style={{marginBottom:16}}>
@@ -2690,7 +2796,7 @@ function AgeFortuneSection({result, globalApiKey, setGlobalApiKey}) {
       const res = await fetch("https://api.anthropic.com/v1/messages",{
         method:"POST",
         headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-        body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:2000,messages:[{role:"user",content:buildPrompt(years,label)}]})
+        body:JSON.stringify({model:"claude-sonnet-5",max_tokens:2000,messages:[{role:"user",content:buildPrompt(years,label)}]})
       });
       if(!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
@@ -2860,7 +2966,7 @@ function AgeFortuneSection({result, globalApiKey, setGlobalApiKey}) {
 
           {/* AI鑑定（前後7年） */}
           {mode==="ai" && !fortune && !loading && (
-            <div style={{background:"#fdf8f2",border:"1px dashed #c4a070",borderRadius:10,padding:"14px",textAlign:"center",marginBottom:12}}>
+            <div className="no-print" style={{background:"#fdf8f2",border:"1px dashed #c4a070",borderRadius:10,padding:"14px",textAlign:"center",marginBottom:12}}>
               {!apiKey.trim()&&<div style={{marginBottom:10,textAlign:"left"}}>
                 <div style={{fontSize:11,color:"#7a6a55",marginBottom:4}}>Anthropic APIキー</div>
                 <input type="password" value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder="sk-ant-..."
@@ -2940,6 +3046,217 @@ function AgeFortuneSection({result, globalApiKey, setGlobalApiKey}) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── AI総合鑑定文（印刷PDFに載る読み解きテキスト） ─────────────
+// 簡易Markdown描画（## 見出し / - 箇条書き / **太字**）
+function MdText({text}) {
+  const bold = (s) => String(s).split(/\*\*(.+?)\*\*/g).map((p,i)=> i%2===1 ? <b key={i} style={{color:"#5a3a1a"}}>{p}</b> : p);
+  const lines = String(text||'').split(/\r?\n/);
+  const out = [];
+  let list = null;
+  const flush = () => { if(list){ out.push(<ul key={"ul"+out.length} style={{margin:"4px 0 10px",paddingLeft:22}}>{list}</ul>); list=null; } };
+  lines.forEach((ln,i)=>{
+    const t = ln.trim();
+    if(/^##\s/.test(t)){ flush(); out.push(<div key={i} style={{borderLeft:"3px solid #c4a070",paddingLeft:8,margin:"18px 0 8px",fontSize:13.5,fontWeight:700,color:"#5a3a1a",letterSpacing:1}}>{t.replace(/^##\s*/,'')}</div>); }
+    else if(/^###\s/.test(t)){ flush(); out.push(<div key={i} style={{margin:"12px 0 6px",fontSize:12.5,fontWeight:700,color:"#6a4a2a"}}>{t.replace(/^###\s*/,'')}</div>); }
+    else if(/^[-・]\s/.test(t)){ (list=list||[]).push(<li key={i} style={{marginBottom:3}}>{bold(t.replace(/^[-・]\s*/,''))}</li>); }
+    else if(t===''){ flush(); }
+    else { flush(); out.push(<div key={i} style={{margin:"4px 0"}}>{bold(t)}</div>); }
+  });
+  flush();
+  return <div style={{fontSize:12.5,lineHeight:1.95,color:"#3a2e22"}}>{out}</div>;
+}
+
+function AIKanteibunSection({result, globalApiKey, setGlobalApiKey}) {
+  const storeKey = `shichusuimei_aibun_${result.bd}_${result.name}`;
+  const [text, setText] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [errorDetail, setErrorDetail] = useState(null);
+  const apiKey = globalApiKey;
+  const cy = new Date().getFullYear();
+
+  // 鑑定する人が変わったら、その人の保存済み鑑定文を読み直す
+  React.useEffect(()=>{
+    try { setText(localStorage.getItem(storeKey)||null); } catch { setText(null); }
+    setError(null); setErrorDetail(null);
+  }, [storeKey]);
+
+  const buildPrompt = () => {
+    const P=result.pillars, T=result.tsuhen, J=result.junishi, Y=result.youjin, ec=result.ec;
+    const pl=(label,p,ts,ju)=>`${label}：${p.stem}${p.branch}（${p.stemEl}/${p.branchEl}${ts?`・通変星:${ts}`:""}${ju?`・十二運:${ju}`:""}）`;
+    const meishiki=[
+      pl("年柱",P.year,T.year,J.year),
+      pl("月柱",P.month,T.month,J.month),
+      pl("日柱",P.day,null,J.day)+"※日干＝本人",
+      P.hour ? pl("時柱",P.hour,T.hour,J.hour) : "時柱：出生時刻不明のため三柱で鑑定",
+    ].join("\n");
+    const dl=result.daiun.list;
+    const ci=dl.findIndex((d,i)=>d.startYear<=cy&&(!dl[i+1]||dl[i+1].startYear>cy));
+    const daiunStr=ci>=0 ? dl.slice(ci,ci+3).map((d,i)=>`${i===0?"現在":"次"+(i>1?"の次":"")}：${d.stem}${d.branch}（${d.startYear}年〜）`).join("、") : "不明";
+    const ry=result.ryunen.find(r=>r.year===cy);
+    const shinList=Object.keys(result.shinSatsu?.summary||{}).join("、");
+    return `あなたは経験豊富な四柱推命の鑑定師です。以下の命式データに基づき、鑑定書のPDFに載せる「命式の読み解き」の文章をMarkdownで書いてください。
+
+【基本情報】
+- 名前：${result.name}様
+- 生年月日：${result.bd}${result.bt?` ${result.bt}生まれ`:"（出生時刻不明）"}
+- 性別：${result.gender==="male"?"男性":"女性"}
+- 今年：${cy}年
+
+【命式】
+${meishiki}
+- 五行バランス：木${ec.木} 火${ec.火} 土${ec.土} 金${ec.金} 水${ec.水}
+- 身強・身弱：${Y?.bodyStr||"不明"}／用神：${Y?.youjinEl||"—"}／喜神：${Y?.kijiinEl||"—"}
+${shinList?`- 神殺：${shinList}\n`:""}- 大運：${daiunStr}
+- 今年の流年：${ry?`${ry.stem}${ry.branch}${ry.tsuhen?`（通変星:${ry.tsuhen}）`:""}`:"—"}
+
+【執筆ルール】
+- 表は作らない（鑑定書の前半に命式表・大運表・流年表が載るため、文章のみ）
+- 見出しは「## 」で、次の構成・順序で書く：
+## 命式サマリー
+## 性格・人物像
+## 強みと課題
+## 仕事・お金・人間関係
+## 大運の流れ（人生の10年期）
+## 今年（${cy}年）の運勢
+## 数秘術（ライフパスナンバー）
+## 健康
+## ⚠️ 注意点
+- 命式サマリーは箇条書き（日干とその象意メタファー・身強弱・五行バランス・用神喜神）
+- 性格・人物像は3〜5項目。通変星・十二運・五行から根拠を持って書く
+- 職業・婚姻・家族構成などの生活実態は断定しない（「独立自営または組織内で自分の領域を持つタイプ」のように両論併記）
+- 比劫以外で命式に1個しかない五行は、それ単独を根拠に鑑定しない。大運・年運でその五行が強まる時期に活きる、という扱いにする
+- 弱い五行と、今年の年運が剋す五行の象意（体の部位・テーマ）は「⚠️ 注意点」に必ず書く
+- 数秘術はライフパスナンバー（生年月日の全桁を1桁になるまで加算。11・22・33はマスターナンバーとして残す）を自分で正確に計算して2〜3行で
+- 誇張や不安を煽る表現は避け、命式から導ける事実ベースで真摯に。丁寧語で書く
+- 全体で1800〜2600字程度
+- 最後は「四柱推命は傾向の参考です。ご本人の意志と行動が運命を作ります。」で締める
+- 出力はMarkdown本文のみ。コードブロックや前置き・後書きは不要`;
+  };
+
+  const generate = async () => {
+    setLoading(true); setError(null); setErrorDetail(null);
+    try {
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {"Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true"},
+        body: JSON.stringify({
+          model: "claude-sonnet-5",
+          max_tokens: 3500,
+          messages: [{role: "user", content: buildPrompt()}]
+        })
+      });
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errText.slice(0,200)}`);
+      }
+      const data = await response.json();
+      if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+      const raw = data.content?.map(c=>c.text||"").join("") || "";
+      if (!raw.trim()) throw new Error("AIからの応答が空でした");
+      const clean = raw.replace(/^```(markdown|md)?\s*/,"").replace(/```\s*$/,"").trim();
+      setText(clean);
+      try { localStorage.setItem(storeKey, clean); } catch { /* 容量超過時は保存だけ諦める */ }
+      setLoading(false);
+      return true;
+    } catch(e) {
+      setError("鑑定文の生成に失敗しました。");
+      setErrorDetail(e.message || String(e));
+    }
+    setLoading(false);
+    return false;
+  };
+
+  // 🖨 印刷ボタンからの依頼：未生成なら生成→完了後に自動で印刷ダイアログを開く
+  const boxRef = React.useRef(null);
+  React.useEffect(() => {
+    const onPrintReq = async () => {
+      boxRef.current?.scrollIntoView({behavior:"smooth", block:"center"});
+      const ok = await generate();
+      if (ok) setTimeout(()=>window.print(), 500);
+    };
+    const onFocusReq = () => boxRef.current?.scrollIntoView({behavior:"smooth", block:"center"});
+    window.addEventListener('shichuAibunPrint', onPrintReq);
+    window.addEventListener('shichuAibunFocus', onFocusReq);
+    return () => {
+      window.removeEventListener('shichuAibunPrint', onPrintReq);
+      window.removeEventListener('shichuAibunFocus', onFocusReq);
+    };
+  });
+
+  let body;
+  if (loading) {
+    body = (
+      <div className="no-print" style={{textAlign:"center",padding:"32px 20px"}}>
+        <div style={{fontSize:24,marginBottom:12}}>⏳</div>
+        <div style={{fontSize:13,color:"#7a5a2a",letterSpacing:2}}>鑑定文を執筆中...</div>
+        <div style={{fontSize:11,color:"#9a8a70",marginTop:8}}>AIが命式を読み解いています（30秒ほどかかります）</div>
+      </div>
+    );
+  } else if (!text) {
+    body = (
+      <div className="no-print" style={{background:"#fdf8f2",border:"1px dashed #c4a070",borderRadius:12,padding:"20px",textAlign:"center"}}>
+        <div style={{fontSize:13,color:"#5a3a1a",marginBottom:4,fontWeight:700}}>📜 命式の読み解き文章をAIが執筆します</div>
+        <div style={{fontSize:11,color:"#8a7a60",marginBottom:14,lineHeight:1.7}}>
+          性格・強みと課題・仕事お金人間関係・大運・今年の運勢・数秘術・健康まで、<br/>
+          鑑定書PDFにそのまま載せられる文章を生成します。<br/>
+          APIキーを入れておけば「🖨 鑑定書を印刷」を押すだけで自動生成→印刷されます
+        </div>
+        {error && (
+          <div style={{marginBottom:12,padding:"8px 12px",background:"#fdf0f0",border:"1px solid #e0a0a0",borderRadius:8,textAlign:"left"}}>
+            <div style={{fontSize:12,color:"#904040"}}>{error}</div>
+            {errorDetail && <div style={{fontSize:10,color:"#b06060",marginTop:4,wordBreak:"break-all",maxHeight:60,overflowY:"auto"}}>{errorDetail}</div>}
+          </div>
+        )}
+        <div style={{marginBottom:12,textAlign:"left"}}>
+          <div style={{fontSize:11,color:"#7a6a55",marginBottom:4}}>Anthropic APIキー</div>
+          <div style={{display:"flex",gap:6}}>
+            <input type="password" value={apiKey} onChange={e=>setGlobalApiKey(e.target.value)} placeholder="sk-ant-..."
+              style={{flex:1,padding:"8px 12px",borderRadius:8,border:"1px solid #c4a070",fontSize:12,background:"#fdf5e8",boxSizing:"border-box"}}/>
+            {apiKey.trim() && (
+              <button onClick={()=>setGlobalApiKey("")} title="キーを消して入れ直す"
+                style={{padding:"4px 10px",borderRadius:8,border:"1px solid #c4a070",background:"#fdf5e8",color:"#8a6a3a",fontSize:11,cursor:"pointer"}}>✕ 入れ直す</button>
+            )}
+          </div>
+          {apiKey.trim() && (()=>{
+            // キー本体は表示せず、形式だけを診断する
+            const diag =
+              (apiKey.includes("…")||apiKey.includes("...")) ? {ok:false,msg:"✗ 伏せ字（…）が入っています。一覧画面ではなく、発行直後に出る画面の「Copy」ボタンでコピーしてください"} :
+              !apiKey.startsWith("sk-ant-api03-") ? {ok:false,msg:"✗ 先頭が sk-ant-api03- ではありません。Anthropicコンソールの「API Keys」で発行したキーか確認してください"} :
+              apiKey.length < 100 ? {ok:false,msg:`△ 長さが短めです（${apiKey.length}文字）。正しいキーは100文字前後。コピーが途中で切れていないか確認してください`} :
+              {ok:true,msg:`✓ キーの形式はOKです（${apiKey.length}文字）`};
+            return <div style={{fontSize:10,marginTop:5,lineHeight:1.6,color:diag.ok?"#2a5c45":"#c04040"}}>{diag.msg}</div>;
+          })()}
+        </div>
+        <button onClick={generate} disabled={!apiKey.trim()}
+          style={{background:apiKey.trim()?"linear-gradient(135deg,#c88a2a,#e8a030)":"#ccc",border:"none",borderRadius:24,padding:"12px 32px",color:"#fff",fontSize:14,fontWeight:700,cursor:apiKey.trim()?"pointer":"not-allowed",letterSpacing:2}}>
+          ✦ AI鑑定文を生成する ✦
+        </button>
+      </div>
+    );
+  } else {
+    body = (
+      <div style={{background:"rgba(253,248,242,0.9)",border:"1px solid #d4b896",borderRadius:12,padding:"18px 20px"}}>
+        <MdText text={text}/>
+        <div className="no-print" style={{display:"flex",alignItems:"center",gap:12,marginTop:16,paddingTop:12,borderTop:"1px dashed #d4b896",flexWrap:"wrap"}}>
+          <button onClick={generate} style={{padding:"6px 16px",borderRadius:8,background:"transparent",border:"1px solid #c4a070",color:"#8a6a3a",cursor:"pointer",fontSize:11}}>🔄 もう一度生成</button>
+          {error && <span style={{fontSize:11,color:"#904040"}}>{error}{errorDetail?`（${errorDetail.slice(0,80)}）`:""}</span>}
+          <span style={{fontSize:10,color:"#9a8a70"}}>この文章は「🖨 鑑定書を印刷」でそのままPDFに入ります</span>
+        </div>
+      </div>
+    );
+  }
+
+  // 文章生成済みなら印刷時に改ページして別ページに（PDF鑑定書と同じ構成）。未生成なら印刷に出さない
+  return (
+    <div ref={boxRef} className={text ? "print-break-before" : "no-print"}>
+      <Section title="▌ 命式の読み解き（AI総合鑑定文）">
+        {body}
+      </Section>
     </div>
   );
 }
@@ -3054,7 +3371,7 @@ ${text}
         res = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
           headers: {"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-          body: JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1500,messages:[{role:"user",content:buildPrompt()}]})
+          body: JSON.stringify({model:"claude-sonnet-5",max_tokens:1500,messages:[{role:"user",content:buildPrompt()}]})
         });
       } catch(fetchErr) {
         throw new Error("通信エラー: " + fetchErr.message + "（インターネット接続を確認してください）");
@@ -4145,7 +4462,18 @@ function App() {
   const [listening, setListening] = useState(false);
   const [voiceMsg, setVoiceMsg] = useState('');
   const recRef = React.useRef(null);
-  const [globalApiKey, setGlobalApiKey] = useState("");
+  const nameInputRef = React.useRef(null);
+  // iOS Safariの webkitSpeechRecognition は「聞き取り中」で固まる不具合があるため、
+  // iOS/iPadOS では OS 標準キーボードのマイク（Dictation）に案内する
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+    || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
+  // APIキーは一度入れたら端末に保存（旧HTML版と同じ shichusuimei_apikey キー）
+  const [globalApiKey, setGlobalApiKeyRaw] = useState(()=>{ try { return localStorage.getItem("shichusuimei_apikey")||""; } catch { return ""; } });
+  const setGlobalApiKey = (v) => {
+    const t = (v||"").trim(); // 貼り付け時の前後空白・改行を除去
+    setGlobalApiKeyRaw(t);
+    try { t ? localStorage.setItem("shichusuimei_apikey", t) : localStorage.removeItem("shichusuimei_apikey"); } catch { /* noop */ }
+  };
   const [activeTab, setActiveTab] = useState("result"); // "result" | "memo"
   const [saveMsg, setSaveMsg] = useState('');
   const handleSave = () => {
@@ -4155,6 +4483,17 @@ function App() {
     setTimeout(()=>setSaveMsg(''), 2000);
     // 保存リストタブに更新を通知
     window.dispatchEvent(new Event('shichuSaved'));
+  };
+
+  // 🖨 鑑定書を印刷：AI鑑定文が未生成なら先に自動生成してから印刷ダイアログを開く
+  const handlePrint = () => {
+    if (!result) { window.print(); return; }
+    setActiveTab("result");
+    let hasAibun = false;
+    try { hasAibun = !!localStorage.getItem(`shichusuimei_aibun_${result.bd}_${result.name}`); } catch { /* noop */ }
+    if (hasAibun) { setTimeout(()=>window.print(), 100); return; }
+    // 未生成 → AI鑑定文セクションに依頼（APIキー未入力なら入力欄へ案内するだけ）
+    setTimeout(()=>window.dispatchEvent(new Event(globalApiKey.trim() ? 'shichuAibunPrint' : 'shichuAibunFocus')), 200);
   };
 
   // 認証チェック（全フック呼び出し後に配置・Hooks規則準拠）
@@ -4184,6 +4523,12 @@ function App() {
   const dayOptions = Array.from({length:31},(_,i)=>i+1);
 
   const handleKantei = () => {
+    // 名前欄に生年月日や時間が丸ごと入っていたら（iOSキーボードのマイク経由など）、音声鑑定として展開する
+    const parsedFromName = parseVoiceKantei(formName);
+    if (parsedFromName.year && parsedFromName.month && parsedFromName.day) {
+      handleVoiceText(formName);
+      return;
+    }
     const y=Number(formYear), m=Number(formMonth), d=Number(formDay);
     const dt = new Date(y, m-1, d);
     if (!y || dt.getFullYear()!==y || dt.getMonth()!==m-1 || dt.getDate()!==d) {
@@ -4230,28 +4575,64 @@ function App() {
       const gender = parsed.gender || formGender;
       setFormName(name); setFormGender(gender);
       setFormYear(String(y)); setFormMonth(String(m)); setFormDay(String(d));
+      // 時間も聞き取れていれば反映
+      let timeStr = formTime;
+      if (parsed.hour !== null && parsed.hour !== undefined) {
+        timeStr = `${String(parsed.hour).padStart(2,"0")}:${String(parsed.minute ?? 0).padStart(2,"0")}`;
+        setFormTime(timeStr);
+      }
       const bd = `${y}-${String(m).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
-      setResult(calcAll(name, bd, formTime, gender));
+      setResult(calcAll(name, bd, timeStr, gender));
       setSubmitted(true);
       setActiveTab("result");
-      setVoiceMsg(`「${text}」→ ${name} さん（${y}年${m}月${d}日）で鑑定しました`);
+      const timeLabel = (parsed.hour !== null && parsed.hour !== undefined)
+        ? ` ${parsed.hour}時${parsed.minute || 0}分`
+        : '';
+      setVoiceMsg(`「${text}」→ ${name} さん（${y}年${m}月${d}日${timeLabel}）で鑑定しました`);
       return;
     }
     if (parsed.name) setFormName(parsed.name);
     setVoiceMsg(`「${text}」→ 生年月日が聞き取れませんでした。「名前 1970年1月15日 男性」のように話すか、保存済みの方は名前だけどうぞ`);
   };
   const startVoice = () => {
+    if (isIOS) {
+      // iOSはキーボードのマイクを使う（Web Speech APIは固まるため使わない）
+      setVoiceMsg("キーボード下の🎤マイクをタップして話してください。名前だけでも、「名前 1970年1月15日 男性」のように続けても構いません。話し終えたら「鑑定」ボタンを押してください。");
+      if (nameInputRef.current) { nameInputRef.current.focus(); nameInputRef.current.select && nameInputRef.current.select(); }
+      return;
+    }
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) { setVoiceMsg("この端末のブラウザは音声認識に対応していません（iPad/iPhoneはSafari、PCはChromeでお試しください）"); return; }
+    if (!SR) { setVoiceMsg("この端末のブラウザは音声認識に対応していません（PCはChromeでお試しください）"); return; }
     try {
       const rec = new SR();
-      rec.lang = "ja-JP"; rec.interimResults = false; rec.maxAlternatives = 1;
-      rec.onresult = (e) => handleVoiceText(e.results[0][0].transcript || "");
-      rec.onerror  = (e) => setVoiceMsg(
-        e.error==="not-allowed" ? "マイクの使用が許可されていません（ブラウザのマイク設定をご確認ください）"
-        : e.error==="no-speech" ? "声が聞き取れませんでした。もう一度お試しください"
-        : "音声認識エラー："+e.error);
-      rec.onend = () => setListening(false);
+      // 継続モード＋中間結果ONにして、話が途切れても5秒間の無音までは自動停止しない
+      rec.lang = "ja-JP"; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 1;
+      const SILENCE_MS = 5000;
+      let finalText = "";
+      let silenceTimer = null;
+      const resetSilenceTimer = () => {
+        clearTimeout(silenceTimer);
+        silenceTimer = setTimeout(() => { try { rec.stop(); } catch { /* 停止失敗は無視 */ } }, SILENCE_MS);
+      };
+      rec.onstart = () => resetSilenceTimer();
+      rec.onresult = (e) => {
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          if (e.results[i].isFinal) finalText += e.results[i][0].transcript;
+        }
+        resetSilenceTimer();
+      };
+      rec.onerror  = (e) => {
+        clearTimeout(silenceTimer);
+        setVoiceMsg(
+          e.error==="not-allowed" ? "マイクの使用が許可されていません（ブラウザのマイク設定をご確認ください）"
+          : e.error==="no-speech" ? "声が聞き取れませんでした。もう一度お試しください"
+          : "音声認識エラー："+e.error);
+      };
+      rec.onend = () => {
+        clearTimeout(silenceTimer);
+        setListening(false);
+        if (finalText.trim()) handleVoiceText(finalText.trim());
+      };
       recRef.current = rec;
       setVoiceMsg(""); setListening(true);
       rec.start();
@@ -4310,12 +4691,12 @@ function App() {
       <div style={{maxWidth:794,margin:"0 auto",padding:"16px 8px 0"}}>
 
         {/* 入力フォーム */}
-        <div style={{background:"rgba(253,248,242,0.9)",border:"1px solid #d4b896",borderRadius:12,padding:"24px",marginBottom:24,boxShadow:"0 2px 12px #c8b89a22"}}>
+        <div className="no-print" style={{background:"rgba(253,248,242,0.9)",border:"1px solid #d4b896",borderRadius:12,padding:"24px",marginBottom:24,boxShadow:"0 2px 12px #c8b89a22"}}>
           <table style={{margin:"0 auto",borderCollapse:"separate",borderSpacing:"0 10px",width:"100%",maxWidth:500}}>
             <tbody>
               <tr>
                 <td><span style={labelStyle}>氏　名</span></td>
-                <td><input type="text" value={formName} onChange={e=>setFormName(e.target.value)} style={{...inputStyle,width:"min(220px,60vw)"}} placeholder="お名前"/></td>
+                <td><input ref={nameInputRef} type="text" value={formName} onChange={e=>setFormName(e.target.value)} style={{...inputStyle,width:"min(220px,60vw)"}} placeholder="お名前"/></td>
               </tr>
               <tr>
                 <td><span style={labelStyle}>性　別</span></td>
@@ -4379,7 +4760,7 @@ function App() {
               onClick={listening ? stopVoice : startVoice}
               style={{background:listening?"#c04040":"#fdf5e8",border:"1px solid #c4a070",borderRadius:24,padding:"12px 20px",color:listening?"#fff":"#8a6a3a",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}
             >
-              {listening ? "🎤 聞き取り中…（タップで停止）" : "🎤 音声で鑑定"}
+              {isIOS ? "🎤 マイクで入力" : (listening ? "🎤 聞き取り中…（タップで停止）" : "🎤 音声で鑑定")}
             </button>
           </div>
           {listening && <div style={{textAlign:"center",marginTop:8,fontSize:11,color:"#c04040"}}>「名前 1970年1月15日 男性」のように一息で、または保存済みの方は名前だけ話してください</div>}
@@ -4395,7 +4776,7 @@ function App() {
                 <div style={{fontSize:16,fontWeight:700,color:"#3a2e22",letterSpacing:1}}>鑑定結果　【{result.name} 様】</div>
               </div>
               <button
-                onClick={()=>window.print()}
+                onClick={handlePrint}
                 style={{background:"#5a5a6a",border:"none",borderRadius:6,padding:"8px 16px",color:"#fff",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}
               >
                 🖨 鑑定書を印刷
@@ -4403,7 +4784,7 @@ function App() {
             </div>
 
             {/* タブ */}
-            <div style={{display:"flex",gap:2,marginTop:10,borderBottom:"1px solid #c4a070",marginBottom:0,flexWrap:"wrap"}}>
+            <div className="no-print" style={{display:"flex",gap:2,marginTop:10,borderBottom:"1px solid #c4a070",marginBottom:0,flexWrap:"wrap"}}>
               <button onClick={()=>setActiveTab("result")} style={tabStyle(activeTab==="result")}>📋 鑑定結果</button>
               <button onClick={()=>setActiveTab("memo")}   style={tabStyle(activeTab==="memo")}>📝 人生メモ</button>
               <button onClick={()=>setActiveTab("soudan")} style={tabStyle(activeTab==="soudan")}>🔮 悩み相談</button>
@@ -4450,6 +4831,15 @@ function App() {
                           return info;
                         })()}
                       />
+                      {result.gokaNoHiki?.length>0 && (
+                        <div style={{marginTop:8,fontSize:10,color:"#8a7050",lineHeight:1.75,background:"#faf6ee",border:"1px dashed #d4b89688",borderRadius:6,padding:"7px 10px"}}>
+                          {result.gokaNoHiki.map((g,i)=>(
+                            <div key={i}>
+                              {g.label}の{g.kind}が揃っていますが、天干に{g.el}が出ていないため<strong>化けていません</strong>。五行はそのままで数えています。
+                            </div>
+                          ))}
+                        </div>
+                      )}
                       <AgeMeishikiGogyou result={result}/>
                     </div>
                   </div>
@@ -4457,12 +4847,20 @@ function App() {
               );
             })()}
 
+            <Section title="▌ 五行を補う食べ物">
+              <KaiunFoodSection ec={result.ec} youjin={result.youjin}/>
+            </Section>
+
             <Section title={`▌ 大運　（立命：${result.daiun.list[0]?.startYear}年〜）`}>
-              <DaiunTableH daiun={result.daiun} dSi={result.pillars.day.stemIdx} pillars={result.pillars}/>
+              <div className="print-shrink">
+                <DaiunTableH daiun={result.daiun} dSi={result.pillars.day.stemIdx} pillars={result.pillars}/>
+              </div>
             </Section>
 
             <Section title={`▌ 流年（${cy-2}〜${cy+7}年）`}>
-              <RyunenTableH ryunen={result.ryunen} pillars={result.pillars} dSi={result.pillars.day.stemIdx} birthYear={Number(result.bd.split("-")[0])}/>
+              <div className="print-shrink">
+                <RyunenTableH ryunen={result.ryunen} pillars={result.pillars} dSi={result.pillars.day.stemIdx} birthYear={Number(result.bd.split("-")[0])}/>
+              </div>
               <div style={{fontSize:10,color:"#8a7a60",marginTop:6}}>※ 正しい立命を知りたい場合は出生時間を正確に入力してください。</div>
             </Section>
 
@@ -4480,6 +4878,9 @@ function App() {
             <Section title="▌ 年齢を指定して運勢を見る">
               <AgeFortuneSection result={result} globalApiKey={globalApiKey} setGlobalApiKey={setGlobalApiKey}/>
             </Section>
+
+            {/* ✦ AI総合鑑定文（🖨 印刷でそのままPDF後半ページに入る） */}
+            <AIKanteibunSection result={result} globalApiKey={globalApiKey} setGlobalApiKey={setGlobalApiKey}/>
 
             {/* 通変星・十二運 説明（チェックで展開） */}
             <TsuhenShinSatsuPanel result={result}/>
