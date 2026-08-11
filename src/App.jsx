@@ -255,6 +255,12 @@ function calcAll(name, bd, bt, gender) {
   // 【2026-07-27】地支が3つ揃うだけでは化けない。天干にその五行が出ていて初めて化合する（＝干が引く）。
   // 引いていない場合は「合しているが化けない」として五行を動かさず、gokaNoHiki に記録する。
   // 出典：SOUYAチャンネル 2026-05-12（なるほどメモ#7）。詳細は docs/変更履歴.md
+  //
+  // 【2026-08-11 保留】この判定は、はるさんの判断待ちのため一時的に止めてある。
+  // false = 2026-07-07 以前と同じ動き（地支が揃えば無条件で化合）
+  // true  = 天干が引いているかを見る（保存済み42人のうち袋谷妻さんの鑑定結果が反転する）
+  // 有効にしたくなったら、この1行を true にするだけでよい。
+  const KAGO_HIKI_CHECK=false;
   const SANGOU_GOKA=[[0,4,8,"水"],[2,6,10,"火"],[11,3,7,"木"],[5,9,1,"金"]];
   const HOUGOU_GOKA=[[2,3,4,"木"],[5,6,7,"火"],[8,9,10,"金"],[11,0,1,"水"]];
   const branchIdxList=activePillars.map(p=>p.branchIdx);
@@ -265,7 +271,7 @@ function calcAll(name, bd, bt, gender) {
     if(![b1,b2,b3].every(b=>branchIdxList.includes(b)))return;
     const kind=gi<SANGOU_GOKA.length?"三合":"方合";
     const label=[b1,b2,b3].map(b=>BRANCHES[b]).join("");
-    if(!stemElList.includes(newEl)){
+    if(KAGO_HIKI_CHECK&&!stemElList.includes(newEl)){
       gokaNoHiki.push({kind,label,el:newEl});
       return;
     }
@@ -2396,16 +2402,34 @@ function KaiunFoodSection({ec, youjin}) {
 // ─── クリックで意味が出るツールチップ ────────────────────────
 function ClickTooltip({label, desc, kw, color}) {
   const [open, setOpen] = React.useState(false);
+  // 【2026-08-11】吹き出しが画面の右へはみ出して読めない・閉じられない不具合の対策。
+  //  ・align … 右端に近ければ右そろえで出す（はみ出し防止）
+  //  ・外側をクリックしたら閉じる。別の星を押したときも前のが閉じる
+  const [align, setAlign] = React.useState("left");
+  const wrapRef = React.useRef(null);
+  const tipRef  = React.useRef(null);
+  React.useLayoutEffect(()=>{
+    if(!open){ setAlign("left"); return; }
+    const el = tipRef.current; if(!el) return;
+    const r = el.getBoundingClientRect();
+    if(r.right > window.innerWidth-8) setAlign("right");
+  },[open]);
+  React.useEffect(()=>{
+    if(!open) return;
+    const h = e => { if(wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("click", h);
+    return ()=>document.removeEventListener("click", h);
+  },[open]);
   return (
-    <span style={{position:"relative",display:"inline-block"}}>
+    <span ref={wrapRef} style={{position:"relative",display:"inline-block"}}>
       <span
-        onClick={e=>{e.stopPropagation();setOpen(!open);}}
+        onClick={()=>setOpen(o=>!o)}
         style={{cursor:"pointer",borderBottom:`1px dashed ${color||"#c4a070"}`,color:color||"#8a5a1a",fontWeight:700,userSelect:"none"}}
       >{label}</span>
       {open && (
         <div
-          onClick={e=>e.stopPropagation()}
-          style={{position:"absolute",zIndex:999,top:"100%",left:0,minWidth:200,maxWidth:280,background:"#fdf8f2",border:`1px solid ${color||"#c4a070"}`,borderRadius:8,padding:"10px 14px",boxShadow:"0 4px 16px #0002",marginTop:4}}
+          ref={tipRef}
+          style={{position:"absolute",zIndex:999,top:"100%",...(align==="right"?{right:0}:{left:0}),minWidth:200,maxWidth:"min(280px, calc(100vw - 24px))",background:"#fdf8f2",border:`1px solid ${color||"#c4a070"}`,borderRadius:8,padding:"10px 14px",boxShadow:"0 4px 16px #0002",marginTop:4}}
         >
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
             <span style={{fontSize:14,fontWeight:700,color:color||"#8a5a1a"}}>{label}</span>
