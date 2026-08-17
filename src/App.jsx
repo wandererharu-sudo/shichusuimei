@@ -235,9 +235,13 @@ function calcAll(name, bd, bt, gender) {
   const KAN_GOKA={0:"土",5:"土",1:"金",6:"金",2:"水",7:"水",3:"木",8:"木",4:"火",9:"火"};
   const activePillars=[yp,mp,dp,hp].filter(Boolean);
   const gokaMoveStem={}; // pillarIdx -> {from:五行, to:五行}
+  // 【2026-08-17】干合は「隣り合う天干」でのみ成立させる（年干－月干／月干－日干／日干－時干）。
+  // 間に柱が挟まる遠隔干合（遥合）は一般の四柱推命では無視するため取らない。はるさん指示。
+  // 元に戻したい場合は下の j!==i+1 を i>=j に戻すだけでよい。
+  // 影響：保存38人のうち5人の同気率が変わり、林良春さん・鶴岡果恋さんは身弱⇔身強が反転する。
   activePillars.forEach((a,i)=>{
     activePillars.forEach((b,j)=>{
-      if(i>=j)return;
+      if(j!==i+1)return;
       const kg=KANGOKAN[a.stemIdx];
       if(kg&&kg.p===b.stemIdx){
         // 干合成立: 化合後の五行にカウントを移動
