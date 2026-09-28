@@ -2591,6 +2591,8 @@ function FutureFortuneSection({result, globalApiKey, setGlobalApiKey}) {
       if (!jsonMatch) throw new Error("JSON形式の応答が取得できませんでした: " + clean.slice(0,100));
       const parsed = JSON.parse(jsonMatch[0]);
       if (!parsed.years || !Array.isArray(parsed.years)) throw new Error("yearsフィールドが見つかりません");
+      // AIが "2027年（丁未）" のように返すことがあるので数値にそろえる
+      parsed.years.forEach(yr => { yr.year = parseInt(String(yr.year), 10); });
       setFortune(parsed);
     } catch(e) {
       setError("鑑定の生成に失敗しました。");
@@ -2831,7 +2833,9 @@ function AgeFortuneSection({result, globalApiKey, setGlobalApiKey}) {
       const text = data.content?.map(c=>c.text||"").join("")||"";
       const m = text.replace(/```json[\s\S]*?```/g,x=>x.slice(7,-3)).replace(/```/g,"").trim().match(/\{[\s\S]*\}/);
       if(!m) throw new Error("JSONが取得できませんでした");
-      setF(JSON.parse(m[0]));
+      const parsed = JSON.parse(m[0]);
+      parsed.years?.forEach(yr => { yr.year = parseInt(String(yr.year), 10); });
+      setF(parsed);
     } catch(e){ setE(e.message); }
     setL(false);
   };
