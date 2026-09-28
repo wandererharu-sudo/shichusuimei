@@ -2573,7 +2573,7 @@ function FutureFortuneSection({result, globalApiKey, setGlobalApiKey}) {
         headers: {"Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true"},
         body: JSON.stringify({
           model: "claude-sonnet-5",
-          max_tokens: 2000,
+          max_tokens: 8000,
           messages: [{role: "user", content: buildPrompt()}]
         })
       });
@@ -2606,7 +2606,7 @@ function FutureFortuneSection({result, globalApiKey, setGlobalApiKey}) {
     "◎大吉":"#fff3e0", "○吉":"#e8f5e8", "△普通":"#f5f5e8", "▲注意":"#f5ece0", "✕凶":"#f5e0e0"
   };
 
-  if (!fortune && !loading) {
+  if (!fortune && !loading && !error) {
     return (
       <div className="no-print" style={{background:"#fdf8f2",border:"1px dashed #c4a070",borderRadius:12,padding:"20px"}}>
         {/* 年選択チェックボックス（鑑定前から表示） */}
@@ -2824,7 +2824,7 @@ function AgeFortuneSection({result, globalApiKey, setGlobalApiKey}) {
       const res = await fetch("https://api.anthropic.com/v1/messages",{
         method:"POST",
         headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-        body:JSON.stringify({model:"claude-sonnet-5",max_tokens:2000,messages:[{role:"user",content:buildPrompt(years,label)}]})
+        body:JSON.stringify({model:"claude-sonnet-5",max_tokens:8000,messages:[{role:"user",content:buildPrompt(years,label)}]})
       });
       if(!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
@@ -3174,7 +3174,7 @@ ${shinList?`- 神殺：${shinList}\n`:""}- 大運：${daiunStr}
         headers: {"Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true"},
         body: JSON.stringify({
           model: "claude-sonnet-5",
-          max_tokens: 3500,
+          max_tokens: 8000,
           messages: [{role: "user", content: buildPrompt()}]
         })
       });
@@ -3399,7 +3399,7 @@ ${text}
         res = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
           headers: {"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-          body: JSON.stringify({model:"claude-sonnet-5",max_tokens:1500,messages:[{role:"user",content:buildPrompt()}]})
+          body: JSON.stringify({model:"claude-sonnet-5",max_tokens:8000,messages:[{role:"user",content:buildPrompt()}]})
         });
       } catch(fetchErr) {
         throw new Error("通信エラー: " + fetchErr.message + "（インターネット接続を確認してください）");
