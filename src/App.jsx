@@ -338,7 +338,18 @@ function saveList(l)  { localStorage.setItem(SAVE_KEY, JSON.stringify(l)); }
 function savePerson(result) {
   const list = savedList();
   const exists = list.find(p=>p.name===result.name && p.bd===result.bd);
-  if (exists) return false;
+  if (exists) {
+    // 時刻・性別を直して保存し直した場合は、その人の命式を更新する（MBTI・グループ・保存日は残す）
+    if ((exists.bt||'') === (result.bt||'') && exists.gender === result.gender) return false;
+    Object.assign(exists, {
+      bt: result.bt||'', gender: result.gender,
+      dayEl: result.pillars.day.stemEl,
+      pillars: { year: result.pillars.year, month: result.pillars.month, day: result.pillars.day },
+      stemEc: result.stemEc, branchEc: result.branchEc, ec: result.ec,
+    });
+    saveList(list);
+    return 'updated';
+  }
   list.unshift({
     name: result.name, bd: result.bd, bt: result.bt||'', gender: result.gender,
     dayEl: result.pillars.day.stemEl,
@@ -876,6 +887,7 @@ function SavedListTab({ onLoad }) {
     const l = savedList(); l.splice(i,1); saveList(l);
     setSelected(s=>s.filter(x=>x!==i).map(x=>x>i?x-1:x));
     setMemoOpen(null);
+    setFamilyOpen(null);
     reload();
   };
 
@@ -2594,6 +2606,7 @@ function FutureFortuneSection({result, globalApiKey, setGlobalApiKey}) {
       }
       const data = await response.json();
       if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+      if (data.stop_reason === "max_tokens") throw new Error("AIの返答が長すぎて途中で切れました。もう一度お試しください。");
       const text = data.content?.map(c=>c.text||"").join("") || "";
       if (!text) throw new Error("AIからの応答が空でした");
       const clean = text.replace(/```json[\s\S]*?```/g, m=>m.slice(7,-3)).replace(/```/g,"").trim();
@@ -2839,8 +2852,9 @@ function AgeFortuneSection({result, globalApiKey, setGlobalApiKey}) {
         headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
         body:JSON.stringify({model:"claude-sonnet-5",max_tokens:8000,messages:[{role:"user",content:buildPrompt(years,label)}]})
       });
-      if(!res.ok) throw new Error(`HTTP ${res.status}`);
+      if(!res.ok) { const t = await res.text().catch(()=>""); throw new Error(`HTTP ${res.status}: ${t.slice(0,200)}`); }
       const data = await res.json();
+      if (data.stop_reason === "max_tokens") throw new Error("AIの返答が長すぎて途中で切れました。もう一度お試しください。");
       const text = data.content?.map(c=>c.text||"").join("")||"";
       const m = text.replace(/```json[\s\S]*?```/g,x=>x.slice(7,-3)).replace(/```/g,"").trim().match(/\{[\s\S]*\}/);
       if(!m) throw new Error("JSONが取得できませんでした");
@@ -2851,13 +2865,13 @@ function AgeFortuneSection({result, globalApiKey, setGlobalApiKey}) {
     setL(false);
   };
 
-  const renderFortune = (fort, years) => (
+  const renderFortune = (fort, years, centerYear) => (
     <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:10}}>
       {fort.overview&&<div style={{background:"linear-gradient(135deg,#fdf5e8,#f5ede0)",border:"1px solid #d4b896",borderRadius:8,padding:"10px 14px",fontSize:12,lineHeight:1.8,color:"#4a3828"}}><span style={{fontSize:10,color:"#8a6a3a",fontWeight:700,marginRight:8}}>◈ 総括</span>{fort.overview}</div>}
       {fort.years?.map((yr,i)=>{
         const rCol=RATING_COLOR[yr.rating]||"#7a6a55", rBg=RATING_BG[yr.rating]||"#fdf8f2";
         const rd=years.find(r=>r.year===yr.year);
-        const isCenter = rd && years[3]?.year===yr.year;
+        const isCenter = rd && centerYear===yr.year;
         return(
           <div key={i} style={{background:rBg,border:`${isCenter?2:1}px solid ${isCenter?rCol:rCol+"44"}`,borderRadius:10,overflow:"hidden"}}>
             <div style={{background:`${rCol}18`,padding:"8px 14px",display:"flex",alignItems:"center",gap:10,borderBottom:`1px solid ${rCol}22`,flexWrap:"wrap"}}>
@@ -3025,7 +3039,7 @@ function AgeFortuneSection({result, globalApiKey, setGlobalApiKey}) {
           {mode==="ai" && error && <div style={{padding:"10px",background:"#fdf0f0",borderRadius:8,fontSize:11,color:"#904040"}}>{error}<button onClick={()=>generateAI(targetYears,`${inputAge}歳前後7年間`,setFortune,setLoading,setError)} style={{marginLeft:8,padding:"3px 10px",borderRadius:5,background:"#c04040",border:"none",color:"#fff",cursor:"pointer",fontSize:10}}>再試行</button></div>}
           {mode==="ai" && fortune && (
             <div>
-              {renderFortune({...fortune, years: fortune.years?.filter(yr=>!visibleYears||visibleYears.has(yr.year))}, targetYears)}
+              {renderFortune({...fortune, years: fortune.years?.filter(yr=>!visibleYears||visibleYears.has(yr.year))}, targetYears, targetYears[3]?.year)}
               <div style={{textAlign:"center",marginTop:10}}>
                 <button onClick={()=>generateAI(targetYears,`${inputAge}歳前後7年間`,setFortune,setLoading,setError)} style={{padding:"6px 16px",borderRadius:8,background:"transparent",border:"1px solid #c4a070",color:"#8a6a3a",cursor:"pointer",fontSize:11}}>🔄 再鑑定</button>
               </div>
@@ -3082,8 +3096,8 @@ function AgeFortuneSection({result, globalApiKey, setGlobalApiKey}) {
                   </div>
                 )}
                 {mode==="ai" && loading5 && <div style={{textAlign:"center",padding:"16px",fontSize:13,color:"#7a5a2a"}}>⏳ 鑑定中...</div>}
-                {mode==="ai" && error5 && <div style={{padding:"8px",background:"#fdf0f0",borderRadius:6,fontSize:11,color:"#904040"}}>{error5}</div>}
-                {mode==="ai" && fortune5 && renderFortune(fortune5, futureYears5)}
+                {mode==="ai" && error5 && <div style={{padding:"8px",background:"#fdf0f0",borderRadius:6,fontSize:11,color:"#904040"}}>{error5}<button onClick={()=>generateAI(futureYears5,`${inputAge}歳以降5年間`,setFortune5,setLoading5,setError5)} style={{marginLeft:8,padding:"3px 10px",borderRadius:6,background:"#c04040",border:"none",color:"#fff",cursor:"pointer",fontSize:11}}>再試行</button></div>}
+                {mode==="ai" && fortune5 && renderFortune(fortune5, futureYears5, futureYears5[0]?.year)}
               </div>
             )}
           </div>
@@ -3199,6 +3213,7 @@ ${shinList?`- 神殺：${shinList}\n`:""}- 大運：${daiunStr}
       }
       const data = await response.json();
       if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+      if (data.stop_reason === "max_tokens") throw new Error("AIの返答が長すぎて途中で切れました。もう一度お試しください。");
       const raw = data.content?.map(c=>c.text||"").join("") || "";
       if (!raw.trim()) throw new Error("AIからの応答が空でした");
       const clean = raw.replace(/^```(markdown|md)?\s*/,"").replace(/```\s*$/,"").trim();
@@ -3323,6 +3338,19 @@ const CATEGORIES = [
   {id:"other",  label:"🌿 その他", color:"#508050"},
 ];
 
+// 悩み相談のAI返答の形をそろえる（配列の欄に文字列・オブジェクトが来ても白画面にしない）
+function normalizeSoudan(a) {
+  const toText = (v) => v==null ? '' : typeof v === 'string' ? v : Array.isArray(v) ? v.map(toText).join('\n') : typeof v === 'object' ? Object.values(v).map(toText).join('：') : String(v);
+  const out = {};
+  Object.entries(a || {}).forEach(([k, v]) => {
+    if (['foods','places','colors'].includes(k)) {
+      out[k] = Array.isArray(v) ? v.map(toText).filter(Boolean) : toText(v).split(/[、,\n]/).map(x=>x.trim()).filter(Boolean);
+    } else {
+      out[k] = toText(v);
+    }
+  });
+  return out;
+}
 function SoudanSection({result, globalApiKey, setGlobalApiKey}) {
   const [category, setCategory] = React.useState("health");
   const [text, setText] = React.useState("");
@@ -3425,12 +3453,13 @@ ${text}
       }
       const data = await res.json();
       if (data.error) throw new Error("APIエラー: " + (data.error.message||JSON.stringify(data.error)));
+      if (data.stop_reason === "max_tokens") throw new Error("AIの返答が長すぎて途中で切れました。もう一度お試しください。");
       const txt = data.content?.map(c=>c.text||"").join("")||"";
       if (!txt) throw new Error("AIからの応答が空でした");
       const clean = txt.replace(/```json[\s\S]*?```/g,x=>x.slice(7,-3)).replace(/```/g,"").trim();
       const m = clean.match(/\{[\s\S]*\}/);
       if (!m) throw new Error("JSON解析失敗。AIの応答: " + clean.slice(0,100));
-      setAnswer(JSON.parse(m[0]));
+      setAnswer(normalizeSoudan(JSON.parse(m[0])));
     } catch(e) {
       setError(e.message || String(e));
     }
@@ -4522,7 +4551,7 @@ function App() {
   const handleSave = () => {
     if (!result) return;
     const ok = savePerson(result);
-    setSaveMsg(ok ? '✓ 保存しました' : '（保存済み）');
+    setSaveMsg(ok === 'updated' ? '✓ 時刻・性別を更新しました' : ok ? '✓ 保存しました' : '（保存済み）');
     setTimeout(()=>setSaveMsg(''), 2000);
     // 保存リストタブに更新を通知
     window.dispatchEvent(new Event('shichuSaved'));
