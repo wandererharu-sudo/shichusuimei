@@ -1,6 +1,50 @@
 import React, { useState } from "react";
 import { initSync, pullNow, getSyncToken, setSyncToken, getSyncStatus, memoKeyOf, childrenKeyOf, readPersonData, personSuffix, migrateLegacyKeys } from "./sync.js";
 
+// ─── 参照する先生（YouTube学習で足した説のオン・オフ）─────────────────
+// 小林先生の元の内容はいつも土台として残る。切り替えるのはYouTubeから足した部分だけ。
+// 足した説には出典の先生ID（SO/MA）を付けておき、チェックを外した先生の説は表示しない。
+// 出典の一覧は docs/変更履歴.md
+const TEACHERS = [
+  { id: "SO", label: "SO", full: "SOUYAチャンネル" },
+  { id: "MA", label: "MA", full: "マニアック東洋占い" },
+];
+const TEACHER_KEY = "shichusuimei_teachers";
+function loadTeachers() {
+  const def = Object.fromEntries(TEACHERS.map(t => [t.id, true]));
+  try { return { ...def, ...JSON.parse(localStorage.getItem(TEACHER_KEY) || "{}") }; } catch { return def; }
+}
+function setTeacherOn(id, on) {
+  try { localStorage.setItem(TEACHER_KEY, JSON.stringify({ ...loadTeachers(), [id]: on })); } catch { /* 保存不可環境 */ }
+  window.dispatchEvent(new Event("shichuTeachers"));
+}
+function useTeachers() {
+  const [t, setT] = useState(loadTeachers);
+  React.useEffect(() => {
+    const h = () => setT(loadTeachers());
+    window.addEventListener("shichuTeachers", h);
+    return () => window.removeEventListener("shichuTeachers", h);
+  }, []);
+  return t;
+}
+// 出典の先生がオンか（出典なし＝小林先生の元の内容は常にtrue）
+const teacherOn = (teachers, src) => !src || teachers[src] !== false;
+function TeacherToggle() {
+  const teachers = useTeachers();
+  return (
+    <div style={{marginTop:12,padding:"8px 12px",background:"#fdf8f2",border:"1px solid #e0d0b8",borderRadius:8,fontSize:12,color:"#6a5a44",display:"flex",flexWrap:"wrap",alignItems:"center",gap:"6px 14px"}}>
+      <span style={{fontWeight:700,color:"#7a5a2a"}}>参照する先生：</span>
+      {TEACHERS.map(t => (
+        <label key={t.id} style={{display:"flex",alignItems:"center",gap:4,cursor:"pointer",userSelect:"none"}}>
+          <input type="checkbox" checked={teachers[t.id] !== false} onChange={e => setTeacherOn(t.id, e.target.checked)} style={{accentColor:"#c88a2a"}}/>
+          {t.label}<span style={{fontSize:10,color:"#9a8a70"}}>（{t.full}）</span>
+        </label>
+      ))}
+      <span style={{fontSize:10,color:"#9a8a70"}}>※小林先生の元の内容はいつも表示</span>
+    </div>
+  );
+}
+
 const STEMS = ["甲","乙","丙","丁","戊","己","庚","辛","壬","癸"];
 const BRANCHES = ["子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥"];
 const STEM_EL = ["木","木","火","火","土","土","金","金","水","水"];
@@ -63,20 +107,20 @@ const TSUHEN_DESC = {
   比肩:{kw:"独立・自立",txt:"意志が強く独立心旺盛。自分のペースを大切にし、一人で物事を成し遂げる力があります。"},
   劫財:{kw:"協力・競争",txt:"仲間と力を合わせる場面で輝きます。社交的で人との繋がりを大切にしますが、時に感情的になりやすい面も。"},
   食神:{kw:"表現・楽しむ",txt:"豊かな表現力と創造性を持ち、自分の才能を自然に発揮できます。",
-    cau:"その場かぎりの提供にとどまると、せっかくの才能が労働の切り売りになりがちです。作品や仕組みとして残す意識が活きます。"},
+    cauSrc:"MA",cau:"その場かぎりの提供にとどまると、せっかくの才能が労働の切り売りになりがちです。作品や仕組みとして残す意識が活きます。"},
   傷官:{kw:"才能・反骨心",txt:"鋭い感性と高い知性が際立ちます。ルールに縛られず、自由な発想で道を切り拓く力があります。",
-    cau:"表現をその都度売る形だと消耗しやすい星です。積み上げた表現を形にして残すと、力が蓄積されていきます。"},
+    cauSrc:"MA",cau:"表現をその都度売る形だと消耗しやすい星です。積み上げた表現を形にして残すと、力が蓄積されていきます。"},
   偏財:{kw:"社交・財運",txt:"人付き合いが上手く、多くの人から慕われます。広い人脈から財を引き寄せる才能があります。"},
   正財:{kw:"堅実・誠実",txt:"コツコツと積み上げる誠実さが持ち味。計画的で安定した財運を持ちます。",
-    cau:"正確さや公平さへのこだわりが強く出ると、本来の目的（楽しさ・効率）を見失うことがあります。"},
+    cauSrc:"MA",cau:"正確さや公平さへのこだわりが強く出ると、本来の目的（楽しさ・効率）を見失うことがあります。"},
   偏官:{kw:"行動・克服",txt:"困難を力で突破するエネルギーを持ちます。強いリーダーシップを発揮できます。",
-    cau:"ゼロから生み出すことは苦手な面があります。すでにあるものを引き継ぐ、仕組みにして回す方が力を発揮します。"},
+    cauSrc:"MA",cau:"ゼロから生み出すことは苦手な面があります。すでにあるものを引き継ぐ、仕組みにして回す方が力を発揮します。"},
   正官:{kw:"責任・品格",txt:"責任感が強く、社会的なルールを重んじます。組織の中で力を発揮します。",
-    cau:"ルールを守ること自体が目的になりやすく、前例のない場面で動けなくなることがあります。"},
+    cauSrc:"MA",cau:"ルールを守ること自体が目的になりやすく、前例のない場面で動けなくなることがあります。"},
   偏印:{kw:"直感・探求",txt:"鋭い直感と旺盛な知的好奇心を持ちます。専門分野を極める力があります。",
-    cau:"数値化しにくい価値を扱う星のため、無償提供や安売りに流れがちです。準備期間が長引き、なかなか世に出られないことも。"},
+    cauSrc:"MA",cau:"数値化しにくい価値を扱う星のため、無償提供や安売りに流れがちです。準備期間が長引き、なかなか世に出られないことも。"},
   正印:{kw:"包容・知性",txt:"深い知性と温かい包容力を兼ね備えます。周囲の人を育てる才能があります。",
-    cau:"完璧な裏付けを集めることが目的になり、行動が遅れがちです。お金にしにくい価値を守る星のため、安売りにも流れやすい面があります。"},
+    cauSrc:"MA",cau:"完璧な裏付けを集めることが目的になり、行動が遅れがちです。お金にしにくい価値を守る星のため、安売りにも流れやすい面があります。"},
 };
 const SEIKAKU = {"甲":{kw:"大樹・開拓者",intro:"甲木の人は、まっすぐに天へ向かって伸びる大樹のような存在です。",p:["強い意志と理想を持ち、一度決めた目標に向かってぶれることなく進んでいく力があります。","リーダーシップを発揮する場面では頼もしい存在となり、周囲から自然と尊敬を集めます。","頑固さや柔軟性の欠如が課題になることもあります。変化を恐れず、周囲の意見に耳を傾ける柔軟さを身につけることで、さらに大きな成長を遂げられます。"]},"乙":{kw:"草花・適応の人",intro:"乙木の人は、しなやかに風に揺れる草花のような存在です。",p:["繊細な感受性と高い共感能力を持ち、場の空気を読む能力に優れています。","美的センスが豊かで、芸術や文化への関心が深い傾向があります。","周囲に合わせすぎるあまり自分の意見を主張できなくなることがあります。自分の軸をしっかり持つことが大切です。"]},"丙":{kw:"太陽・情熱家",intro:"丙火の人は、全てを明るく照らす太陽のような存在です。",p:["エネルギッシュで明朗快活、どんな場所でもその存在感で周囲を明るくします。","情熱的で行動力があり、アイデアを素早く形にしていく力に優れています。","感情の起伏が激しくなりやすく、一つのことを継続する忍耐力を意識的に鍛えることが成長への鍵となります。"]},"丁":{kw:"灯火・洞察者",intro:"丁火の人は、暗闇を静かに照らす灯火のような存在です。",p:["知性的で洞察力に優れ、物事の本質を見抜く鋭い眼力を持っています。","内向的に見えることもありますが、その内側には強い情熱と信念を秘めています。","思慮深いゆえに行動が慎重になりすぎることがあります。積極的に世界に関わっていくことが大切です。"]},"戊":{kw:"大山・安定の柱",intro:"戊土の人は、どっしりと構えた大山のような存在です。",p:["安定感と信頼性が際立ち、周囲から頼りにされる存在です。長期的な視野で着実に成果を上げます。","度量が大きく、様々な人や意見を受け入れる包容力があります。","変化への対応が遅くなりがちで、新しいことへの挑戦に臆してしまうことも。柔軟さを意識しましょう。"]},"己":{kw:"田畑・育む人",intro:"己土の人は、万物を育む肥沃な田畑のような存在です。",p:["細やかな気配りと面倒見の良さが特徴で、周囲の人を自然とサポートする優しさを持っています。","協調性が高く、チームの調和を保つことを得意とします。","自己主張が苦手で、他人に振り回されやすい傾向があります。自分の意見をはっきり伝えることも重要です。"]},"庚":{kw:"鋭刃・改革者",intro:"庚金の人は、不純物を断ち切る鋭い刃のような存在です。",p:["意志が強く決断力があり、論理的で合理的な思考を持ちます。","正直で率直な物言いは真実を追求する誠実さの表れです。義理を重んじる責任感の強さも持ち合わせています。","頑固で融通が利かない面が出ることがあります。人の感情に寄り添う優しさを意識することが大切です。"]},"辛":{kw:"宝玉・繊細な輝き",intro:"辛金の人は、丁寧に磨かれた宝石のような存在です。",p:["高い審美眼と繊細な感性を持ち、美しさや品質へのこだわりが強いです。","鋭い観察眼を持ち、小さな変化や違和感にいち早く気づく能力があります。","プライドが高く傷つきやすい繊細な一面もあります。適度な余裕を持つことが心の安定につながります。"]},"壬":{kw:"大海・包容の人",intro:"壬水の人は、全てを包み込む大海原のような存在です。",p:["スケールの大きな思考と広い視野を持ち、知的好奇心が旺盛です。","柔軟性が高く、どんな環境にも順応できる適応力の高さが魅力です。","気が向いた方向に流れやすく、継続性に欠けることがあります。深い関係を築いていくことで人生が豊かになります。"]},"癸":{kw:"雨露・洞察の知性",intro:"癸水の人は、大地に静かに染み渡る雨露のような存在です。",p:["鋭い直感と高い知性を兼ね備え、物事の深層まで洞察する力があります。","献身的で思いやりがあり、困っている人を見ると放っておけない優しさを持っています。","内気で自分の気持ちを表現することが苦手な面があります。信頼できる人に心を開いていくことで、その豊かな内面が輝きを放つでしょう。"]}};
 
@@ -264,6 +308,7 @@ function calcAll(name, bd, bt, gender) {
   // false = 2026-07-07 以前と同じ動き（地支が揃えば無条件で化合）
   // true  = 天干が引いているかを見る（保存済み42人のうち袋谷妻さんの鑑定結果が反転する）
   // 有効にしたくなったら、この1行を true にするだけでよい。
+  // SOUYAチャンネル（SO）の説。一時停止中。復活させる時は「参照する先生」のSOがオンの時だけ効くようにする
   const KAGO_HIKI_CHECK=false;
   const SANGOU_GOKA=[[0,4,8,"水"],[2,6,10,"火"],[11,3,7,"木"],[5,9,1,"金"]];
   const HOUGOU_GOKA=[[2,3,4,"木"],[5,6,7,"火"],[8,9,10,"金"],[11,0,1,"水"]];
@@ -1318,6 +1363,7 @@ function RyunenTableH({ryunen, pillars, dSi, birthYear}) {
 
 // ─── 通変星・十二運 説明セクション ─────────────────────────────
 function TsuhenJunishiSection({tsuhen, junishi}) {
+  const teachers = useTeachers();
   // 命式に現れる通変星・十二運だけ抽出（重複排除）
   const thSet = [...new Set([tsuhen.year, tsuhen.month, tsuhen.hour].filter(Boolean))];
   const juSet = [...new Set([junishi.year, junishi.month, junishi.day, junishi.hour].filter(Boolean))];
@@ -1337,7 +1383,7 @@ function TsuhenJunishiSection({tsuhen, junishi}) {
                     <span style={{fontSize:10,color:"#a07840",background:"#f0e0c0",padding:"1px 7px",borderRadius:10,border:"1px solid #d4b89666"}}>{d.kw}</span>
                   </div>
                   <p style={{fontSize:11,color:"#6a5a44",lineHeight:1.7,margin:0}}>{d.txt}</p>
-                  {d.cau && (
+                  {d.cau && teacherOn(teachers, d.cauSrc) && (
                     <p style={{fontSize:10,color:"#8a6050",lineHeight:1.7,margin:"6px 0 0",paddingTop:6,borderTop:"1px dashed #d4b89666"}}>
                       <span style={{color:"#a56a4a",fontWeight:700}}>落とし穴 </span>{d.cau}
                     </p>
@@ -2248,6 +2294,7 @@ function AgeMeishikiGogyou({result}) {
 }
 
 function SeikakuSection({stem, seikaku, tsuhen, junishi}) {
+  const teachers = useTeachers();
   const [showTsuhen, setShowTsuhen] = useState(false);
   const [showJunishi, setShowJunishi] = useState(false);
   const raw = (seikaku||SEIKAKU)[stem];
@@ -2298,7 +2345,7 @@ function SeikakuSection({stem, seikaku, tsuhen, junishi}) {
                   <span style={{fontSize:10,color:"#a07840",background:"#f0e0c0",padding:"1px 7px",borderRadius:10,border:"1px solid #d4b89666"}}>{d.kw}</span>
                 </div>
                 <p style={{fontSize:13,lineHeight:1.9,color:"#4a3828",margin:0}}>{d.txt}</p>
-                {d.cau && (
+                {d.cau && teacherOn(teachers, d.cauSrc) && (
                   <p style={{fontSize:12,lineHeight:1.9,color:"#7a5648",margin:"6px 0 0",background:"#fdf6f2",border:"1px solid #e8d0c4",borderRadius:6,padding:"7px 11px"}}>
                     <span style={{color:"#a56a4a",fontWeight:700}}>落とし穴 </span>{d.cau}
                   </p>
@@ -4480,6 +4527,7 @@ function MbtiTab({ result, mbtiInitial, onSaved }) {
 }
 
 function App() {
+  const teachers = useTeachers();
   // 認証は localStorage に永続化：端末（ブラウザ）ごとに初回1回だけ入力すればよい
   // （旧 sessionStorage の認証済み印も引き続き有効として扱う）
   const [authed, setAuthed] = useState(()=>localStorage.getItem("shichusuimei_auth")==="1"||sessionStorage.getItem("shichusuimei_auth")==="1");
@@ -4837,6 +4885,7 @@ function App() {
           </div>
           {listening && <div style={{textAlign:"center",marginTop:8,fontSize:11,color:"#c04040"}}>「名前 1970年1月15日 男性」のように一息で、または保存済みの方は名前だけ話してください</div>}
           {!listening && voiceMsg && <div style={{textAlign:"center",marginTop:8,fontSize:11,color:"#8a6a3a"}}>{voiceMsg}</div>}
+          <TeacherToggle/>
         </div>
 
         {/* 鑑定結果 */}
@@ -4919,9 +4968,11 @@ function App() {
               );
             })()}
 
-            <Section title="▌ 五行を補う食べ物">
-              <KaiunFoodSection ec={result.ec} youjin={result.youjin}/>
-            </Section>
+            {teacherOn(teachers, "MA") && (
+              <Section title="▌ 五行を補う食べ物">
+                <KaiunFoodSection ec={result.ec} youjin={result.youjin}/>
+              </Section>
+            )}
 
             <Section title={`▌ 大運　（立命：${result.daiun.list[0]?.startYear}年〜）`}>
               <div className="print-shrink">
