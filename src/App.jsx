@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { initSync, pullNow, getSyncToken, setSyncToken, getSyncStatus } from "./sync.js";
+import { initSync, pullNow, getSyncToken, setSyncToken, getSyncStatus, memoKeyOf, childrenKeyOf, readPersonData, personSuffix, migrateLegacyKeys } from "./sync.js";
 
 const STEMS = ["甲","乙","丙","丁","戊","己","庚","辛","壬","癸"];
 const BRANCHES = ["子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥"];
@@ -532,13 +532,13 @@ function FamilyFortuneBoard({list}) {
 }
 
 // ─── 保存リスト用 人生メモパネル ──────────────────────────
-// 鑑定画面の人生メモ（shichusuimei_memo_${bd}）と同じ保管場所を共有する。
+// 鑑定画面の人生メモ（shichusuimei_memo_${bd}_${name}）と同じ保管場所を共有する。
 // calcAll でその場で命式を再計算し、LifeTimelineTable で大運・年運と照合表示する。
-function memoCountOf(bd) {
-  try { return JSON.parse(localStorage.getItem(`shichusuimei_memo_${bd}`)||'[]').length; } catch { return 0; }
+function memoCountOf(p) {
+  return readPersonData('memo', p.name, p.bd).length;
 }
 function SavedMemoPanel({ person, onChanged }) {
-  const storageKey = `shichusuimei_memo_${person.bd}`;
+  const storageKey = memoKeyOf(person.name, person.bd);
   const birthYear  = Number(person.bd.split("-")[0]);
   const result = React.useMemo(() => {
     try { return calcAll(person.name, person.bd, person.bt||'', person.gender||'male'); }
@@ -549,9 +549,13 @@ function SavedMemoPanel({ person, onChanged }) {
   const [newDate, setNewDate] = React.useState("");
   const [newText, setNewText] = React.useState("");
 
+  // 初回・クラウド同期のたびに読み直す（古い表示のまま保存して取り込み分を消さないため）
   React.useEffect(() => {
-    try { const ms = localStorage.getItem(storageKey); setMemos(ms?JSON.parse(ms):[]); } catch { setMemos([]); }
-  }, [storageKey]);
+    const load = () => setMemos(readPersonData('memo', person.name, person.bd));
+    load();
+    window.addEventListener('shichuSynced', load);
+    return () => window.removeEventListener('shichuSynced', load);
+  }, [person.name, person.bd]);
 
   const save = (m) => {
     const sorted = [...m].sort((a,b)=> a.year!==b.year ? a.year-b.year : (a.isWork?1:0)-(b.isWork?1:0));
@@ -650,16 +654,16 @@ function SyncBar() {
 }
 
 // ─── 保存リスト用 家族パネル ──────────────────────────────
-// 鑑定画面の家族情報（shichusuimei_children_${bd}）と同じ保管場所を共有する。
-function familyCountOf(bd) {
-  try { return JSON.parse(localStorage.getItem(`shichusuimei_children_${bd}`)||'[]').length; } catch { return 0; }
+// 鑑定画面の家族情報（shichusuimei_children_${bd}_${name}）と同じ保管場所を共有する。
+function familyCountOf(p) {
+  return readPersonData('children', p.name, p.bd).length;
 }
 // 家族メンバー（birthYear/Month/Day形式）→ 保存リスト人物形式（openPersonでフル鑑定できる形）
 function famToPerson(c) {
   return { name: c.name, bd: `${c.birthYear}-${String(c.birthMonth||1).padStart(2,'0')}-${String(c.birthDay||1).padStart(2,'0')}`, bt: c.birthTime||'', gender: c.gender||'male' };
 }
 function SavedFamilyPanel({ person, onChanged, onOpen }) {
-  const childrenKey = `shichusuimei_children_${person.bd}`;
+  const childrenKey = childrenKeyOf(person.name, person.bd);
   const [children, setChildren] = React.useState([]);
   const [newName, setNewName]     = React.useState("");
   const [newYear, setNewYear]     = React.useState(String(new Date().getFullYear()-30));
@@ -670,8 +674,11 @@ function SavedFamilyPanel({ person, onChanged, onOpen }) {
   const [view, setView]           = React.useState(null); // {member, result}
 
   React.useEffect(() => {
-    try { const cs = localStorage.getItem(childrenKey); setChildren(cs?JSON.parse(cs):[]); } catch { setChildren([]); }
-  }, [childrenKey]);
+    const load = () => setChildren(readPersonData('children', person.name, person.bd));
+    load();
+    window.addEventListener('shichuSynced', load);
+    return () => window.removeEventListener('shichuSynced', load);
+  }, [person.name, person.bd]);
 
   const save = (c) => {
     setChildren(c);
@@ -735,8 +742,8 @@ function SavedListTab({ onLoad }) {
   const [memoTick, setMemoTick] = React.useState(0);      // メモ更新時に件数バッジを再描画
   const [familyOpen, setFamilyOpen] = React.useState(null); // 家族パネルを開いている行index
   const [familyTick, setFamilyTick] = React.useState(0);    // 家族更新時に件数バッジを再描画
-  const memoCounts = React.useMemo(() => list.map(p=>memoCountOf(p.bd)), [list, memoTick]);
-  const familyCounts = React.useMemo(() => list.map(p=>familyCountOf(p.bd)), [list, familyTick]);
+  const memoCounts = React.useMemo(() => list.map(p=>memoCountOf(p)), [list, memoTick]);
+  const familyCounts = React.useMemo(() => list.map(p=>familyCountOf(p)), [list, familyTick]);
 
   // タブ表示・保存イベント・クラウド同期のたびに最新データを読み込む
   React.useEffect(() => {
@@ -759,7 +766,7 @@ function SavedListTab({ onLoad }) {
       if (p.group !== undefined) return;
       let g = '';
       try {
-        const ms = JSON.parse(localStorage.getItem(`shichusuimei_memo_${p.bd}`)||'[]');
+        const ms = readPersonData('memo', p.name, p.bd);
         for (const m of ms) { const mt = /グループ[：:]\s*([^\s／、,]+)/.exec(m.text||''); if (mt) { g = mt[1]; break; } }
       } catch { /* 破損データは無視 */ }
       if (g === '未分類') g = '';
@@ -883,8 +890,8 @@ function SavedListTab({ onLoad }) {
     const l = savedList();
     const memos = {}, children = {};
     l.forEach(p=>{
-      try { const m = localStorage.getItem(`shichusuimei_memo_${p.bd}`); if(m) memos[p.bd]=JSON.parse(m); } catch { /* 破損データは無視 */ }
-      try { const c = localStorage.getItem(`shichusuimei_children_${p.bd}`); if(c) children[p.bd]=JSON.parse(c); } catch { /* 破損データは無視 */ }
+      const m = readPersonData('memo', p.name, p.bd); if(m.length) memos[personSuffix(p.name, p.bd)]=m;
+      const c = readPersonData('children', p.name, p.bd); if(c.length) children[personSuffix(p.name, p.bd)]=c;
     });
     const data = {app:"shichusuimei", type:"persons_backup", exportedAt:new Date().toISOString(), persons:l, memos, children};
     const a = document.createElement('a');
@@ -933,7 +940,8 @@ function SavedListTab({ onLoad }) {
             try { localStorage.setItem(`shichusuimei_children_${bd}`, JSON.stringify(arr)); } catch { /* 容量超過等 */ }
           }
         });
-        setMemoTick(t=>t+1);
+        migrateLegacyKeys(); // 旧形式（生年月日だけ）のバックアップを新キーへ
+        setMemoTick(t=>t+1); setFamilyTick(t=>t+1);
         reload();
         alert(`インポート完了\n人物：${newPersons.length}件追加（重複${data.persons.length-newPersons.length}件スキップ）\n人生メモ：${memoAdd}件追加`);
       } catch (err) { alert('読み込みエラー：'+err.message); }
@@ -1472,9 +1480,9 @@ function LifeTimelineTable({memos, birthYear, mainResult}) {
 }
 
 // ─── 年齢メモセクション（パスワード保護） ────────────────────────
-function AgeMemoSection({birthYear, bd, mainResult, onOpenPerson}) {
-  const storageKey  = `shichusuimei_memo_${bd}`;
-  const childrenKey = `shichusuimei_children_${bd}`;
+function AgeMemoSection({birthYear, bd, name, mainResult, onOpenPerson}) {
+  const storageKey  = memoKeyOf(name, bd);
+  const childrenKey = childrenKeyOf(name, bd);
 
   // ── メモ状態 ────────────────────────────────────────
   const [memos, setMemos]       = useState([]);
@@ -1505,10 +1513,13 @@ function AgeMemoSection({birthYear, bd, mainResult, onOpenPerson}) {
   const [editChild, setEditChild]         = useState(null);
 
   // ── localStorage からの初回ロード ───────────────────────────
+  // 初回・クラウド同期のたびに読み直す（古い表示のまま保存して取り込み分を消さないため）
   React.useEffect(() => {
-    try { const ms = localStorage.getItem(storageKey); if(ms) setMemos(JSON.parse(ms)); } catch { /* 破損データは無視 */ }
-    try { const cs = localStorage.getItem(childrenKey); if(cs) setChildren(JSON.parse(cs)); } catch { /* 破損データは無視 */ }
-  }, [storageKey, childrenKey]);
+    const load = () => { setMemos(readPersonData('memo', name, bd)); setChildren(readPersonData('children', name, bd)); };
+    load();
+    window.addEventListener('shichuSynced', load);
+    return () => window.removeEventListener('shichuSynced', load);
+  }, [name, bd]);
 
   const saveMemos    = (m) => { setMemos(m); try { localStorage.setItem(storageKey, JSON.stringify(m)); } catch { /* 容量超過等 */ } };
   const saveChildren = (c) => { setChildren(c); try { localStorage.setItem(childrenKey, JSON.stringify(c)); } catch { /* 容量超過等 */ } };
@@ -4926,7 +4937,7 @@ function App() {
             {/* ── 人生メモタブ ── */}
             {activeTab==="memo" && (
               <div style={{border:"1px solid #c4a070",borderTop:"none",borderRadius:"0 8px 8px 8px",padding:"24px 16px",background:"rgba(253,248,242,0.95)"}}>
-                <AgeMemoSection birthYear={Number(result.bd.split("-")[0])} bd={result.bd} mainResult={result} onOpenPerson={openPerson}/>
+                <AgeMemoSection birthYear={Number(result.bd.split("-")[0])} bd={result.bd} name={result.name} mainResult={result} onOpenPerson={openPerson}/>
               </div>
             )}
 

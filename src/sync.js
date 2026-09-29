@@ -14,6 +14,61 @@ const SAVE_KEY = 'shichuPersons';
 const TOKEN_KEY = 'shichusuimei_gh_token';
 const SYNCED_KEY = 'shichusuimei_synced_at'; // 最後に取り込み/送信した updatedAt
 const DIRTY_KEY = 'shichusuimei_sync_dirty'; // '1'=未送信の修正あり
+const SHA_KEY = 'shichusuimei_synced_sha';    // 最後に取り込み/送信したクラウドの版（sha）
+const BASE_KEY = 'shichusuimei_sync_base';   // 前回そろえた時点のクラウド内容（3者統合の基準）
+
+// 人生メモ・家族の保管キー：生年月日＋名前で分ける（2026-09-29〜。旧形式は生年月日だけ）
+export const personSuffix = (name, bd) => `${bd}_${name}`;
+export const memoKeyOf = (name, bd) => 'shichusuimei_memo_' + personSuffix(name, bd);
+export const childrenKeyOf = (name, bd) => 'shichusuimei_children_' + personSuffix(name, bd);
+// 新キーが無ければ旧キー（生年月日だけ）を読む
+export function readPersonData(kind, name, bd) {
+  const pre = 'shichusuimei_' + kind + '_';
+  try {
+    const v = localStorage.getItem(pre + personSuffix(name, bd)) ?? localStorage.getItem(pre + bd);
+    const a = v ? JSON.parse(v) : [];
+    return Array.isArray(a) ? a : [];
+  } catch { return []; }
+}
+
+const memoId = (m) => (m && m.year) + '|' + (m && m.text);
+const childId = (c) => [c && c.name, c && c.birthYear, c && c.birthMonth, c && c.birthDay].join('|');
+function unionBy(a, b, idf) {
+  const out = [...a];
+  const have = new Set(a.map(idf));
+  b.forEach((x) => { if (!have.has(idf(x))) { out.push(x); have.add(idf(x)); } });
+  return out;
+}
+
+// 旧キー（生年月日だけ）を、保存リストの同じ生年月日の人ごとの新キーへ移す。
+// 同じ生年月日の人が複数いれば全員にコピー（これまで共有で見えていた内容なので消さない）。
+// 保存リストに該当者がいない旧キーはそのまま残す（readPersonData で読める）。
+export function migrateLegacyKeys() {
+  let persons = [];
+  try { persons = JSON.parse(localStorage.getItem(SAVE_KEY) || '[]'); } catch { return; }
+  const legacy = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    const m = k && /^shichusuimei_(memo|children)_(\d{4}-\d{2}-\d{2})$/.exec(k);
+    if (m) legacy.push([k, m[1], m[2]]);
+  }
+  legacy.forEach(([k, kind, bd]) => {
+    const owners = persons.filter((p) => p && p.bd === bd && p.name);
+    if (!owners.length) return;
+    let old = [];
+    try { old = JSON.parse(localStorage.getItem(k) || '[]'); } catch { old = []; }
+    if (!Array.isArray(old)) old = [];
+    owners.forEach((p) => {
+      const nk = 'shichusuimei_' + kind + '_' + personSuffix(p.name, bd);
+      let cur = [];
+      try { cur = JSON.parse(localStorage.getItem(nk) || '[]'); } catch { cur = []; }
+      const merged = unionBy(Array.isArray(cur) ? cur : [], old, kind === 'memo' ? memoId : childId);
+      if (kind === 'memo') merged.sort((a, b) => a.year - b.year);
+      try { localStorage.setItem(nk, JSON.stringify(merged)); } catch { /* 容量超過等 */ }
+    });
+    localStorage.removeItem(k);
+  });
+}
 
 let applying = false;   // applyRemote中はsetItem検知を止める
 let pushTimer = null;
@@ -65,7 +120,7 @@ function collectLocal() {
 }
 
 // クラウドのデータをローカルへ丸ごと反映（削除も反映するため一旦消して入れ直す）
-function applyRemote(data) {
+function applyRemote(data, sha) {
   applying = true;
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify(data.persons || []));
@@ -82,7 +137,80 @@ function applyRemote(data) {
       try { localStorage.setItem('shichusuimei_children_' + bd, JSON.stringify(arr)); } catch { /* 容量超過等 */ }
     });
     localStorage.setItem(SYNCED_KEY, data.updatedAt || '');
+    if (sha) localStorage.setItem(SHA_KEY, sha);
     localStorage.removeItem(DIRTY_KEY);
+    saveBase(data);
+  } finally {
+    applying = false;
+  }
+  migrateLegacyKeys(); // 旧形式の端末から来たデータを新キーへ（変更があれば自動送信される）
+  window.dispatchEvent(new Event('shichuSynced'));
+  window.dispatchEvent(new Event('shichuSaved'));
+}
+
+function saveBase(data) {
+  try {
+    localStorage.setItem(BASE_KEY, JSON.stringify({ persons: data.persons || [], memos: data.memos || {}, children: data.children || {} }));
+  } catch { /* 容量超過等：基準なしでも統合（和集合）で動く */ }
+}
+function loadBase() {
+  try { const b = JSON.parse(localStorage.getItem(BASE_KEY) || 'null'); if (b) return b; } catch { /* 破損は基準なし扱い */ }
+  return { persons: [], memos: {}, children: {} };
+}
+
+// 3者統合：基準（前回そろえた時点）・端末・クラウドを比べ、片方だけの変更はその変更を採用、
+// 両方で変わった項目は統合（人物は端末側優先・メモと家族は和集合）。
+// 基準にあって片方で消えた項目は削除として扱う。
+function merge3(base, local, remote, both) {
+  const js = JSON.stringify;
+  const out = {};
+  new Set([...Object.keys(local), ...Object.keys(remote)]).forEach((k) => {
+    const b = base[k], l = local[k], r = remote[k];
+    if (l !== undefined && r !== undefined) {
+      if (js(l) === js(r)) out[k] = l;
+      else if (b !== undefined && js(l) === js(b)) out[k] = r;
+      else if (b !== undefined && js(r) === js(b)) out[k] = l;
+      else out[k] = both(l, r);
+    } else if (l !== undefined) {
+      if (b === undefined || js(l) !== js(b)) out[k] = l;
+    } else if (b === undefined || js(r) !== js(b)) {
+      out[k] = r;
+    }
+  });
+  return out;
+}
+const personMap = (arr) => {
+  const m = {};
+  (arr || []).forEach((p) => { if (p && p.name && p.bd) m[p.name + '|' + p.bd] = p; });
+  return m;
+};
+
+// クラウドの内容を端末へ統合する（送信の直前に呼ぶ）
+function mergeIntoLocal(remoteData) {
+  const base = loadBase();
+  const local = collectLocal();
+  const lp = personMap(local.persons);
+  const rp = personMap(remoteData.persons);
+  const mp = merge3(personMap(base.persons), lp, rp, (l) => l);
+  const persons = [];
+  (local.persons || []).forEach((p) => { const k = p && p.name + '|' + p.bd; if (mp[k]) { persons.push(mp[k]); delete mp[k]; } });
+  (remoteData.persons || []).forEach((p) => { const k = p && p.name + '|' + p.bd; if (mp[k]) { persons.push(mp[k]); delete mp[k]; } });
+  const memos = merge3(base.memos || {}, local.memos, remoteData.memos || {},
+    (l, r) => unionBy(l, r, memoId).sort((a, b) => a.year - b.year));
+  const children = merge3(base.children || {}, local.children, remoteData.children || {},
+    (l, r) => unionBy(l, r, childId));
+  applying = true;
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(persons));
+    const del = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && (k.startsWith('shichusuimei_memo_') || k.startsWith('shichusuimei_children_'))) del.push(k);
+    }
+    del.forEach((k) => localStorage.removeItem(k));
+    Object.entries(memos).forEach(([s, arr]) => { try { localStorage.setItem('shichusuimei_memo_' + s, JSON.stringify(arr)); } catch { /* 容量超過等 */ } });
+    Object.entries(children).forEach(([s, arr]) => { try { localStorage.setItem('shichusuimei_children_' + s, JSON.stringify(arr)); } catch { /* 容量超過等 */ } });
+    migrateLegacyKeys();
   } finally {
     applying = false;
   }
@@ -110,59 +238,48 @@ async function ghPut(token, jsonText, sha, keepalive) {
     headers: { Authorization: 'Bearer ' + token, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error('送信エラー ' + res.status);
+  if (!res.ok) { const e = new Error('送信エラー ' + res.status); e.status = res.status; throw e; }
   return res.json();
 }
 
-// ローカル→クラウドへ送信
+// 前回そろえたあとにクラウドが更新されたか（版shaで判定。sha未記録の端末は更新時刻で判定）
+function remoteChanged(remote, rdata) {
+  const sha = localStorage.getItem(SHA_KEY);
+  if (sha) return remote.sha !== sha;
+  return (rdata.updatedAt || '') !== (localStorage.getItem(SYNCED_KEY) || '');
+}
+
+// ローカル→クラウドへ送信。前回の同期のあとに他の端末がクラウドを更新していたら、
+// 先に端末へ統合してから送る（丸ごと上書きで他端末の変更を消さないため）
 export async function pushNow(keepalive = false) {
   const token = getSyncToken();
   if (!token) return;
   clearTimeout(pushTimer);
   setStatus('syncing', '送信中…');
   try {
-    const data = collectLocal();
-    let sha;
-    const remote = await ghGet(token);
-    sha = remote ? remote.sha : undefined;
-    await ghPut(token, JSON.stringify(data), sha, keepalive);
-    localStorage.setItem(SYNCED_KEY, data.updatedAt);
-    localStorage.removeItem(DIRTY_KEY);
-    setStatus('ok', '送信しました');
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const remote = await ghGet(token);
+      if (remote) {
+        const rdata = JSON.parse(b64decode(remote.content));
+        if (remoteChanged(remote, rdata)) mergeIntoLocal(rdata);
+      }
+      const data = collectLocal();
+      try {
+        const put = await ghPut(token, JSON.stringify(data), remote ? remote.sha : undefined, keepalive);
+        if (put && put.content && put.content.sha) localStorage.setItem(SHA_KEY, put.content.sha);
+      } catch (e) {
+        if (e.status === 409 && attempt === 0) continue; // 送信が重なった：取り直して統合し直す
+        throw e;
+      }
+      localStorage.setItem(SYNCED_KEY, data.updatedAt);
+      localStorage.removeItem(DIRTY_KEY);
+      saveBase(data);
+      setStatus('ok', '送信しました');
+      return;
+    }
   } catch (e) {
     setStatus('error', e.message);
   }
-}
-
-// 初回同期用：クラウド側にしかないデータをローカルへ追加してから送信する
-// （どちらか一方を正にすると、もう一方のデータが消えるため必ず統合する）
-function mergeRemoteIntoLocal(data) {
-  applying = true;
-  try {
-    let persons = [];
-    try { persons = JSON.parse(localStorage.getItem(SAVE_KEY) || '[]'); } catch { persons = []; }
-    const key = (p) => p.name + '|' + p.bd;
-    const have = new Set(persons.map(key));
-    (data.persons || []).forEach((p) => { if (p && p.name && p.bd && !have.has(key(p))) persons.push(p); });
-    localStorage.setItem(SAVE_KEY, JSON.stringify(persons));
-    Object.entries(data.memos || {}).forEach(([bd, arr]) => {
-      if (!Array.isArray(arr)) return;
-      let cur = [];
-      try { cur = JSON.parse(localStorage.getItem('shichusuimei_memo_' + bd) || '[]'); } catch { cur = []; }
-      arr.forEach((m) => { if (m && m.year && m.text && !cur.find((x) => x.year === m.year && x.text === m.text)) cur.push(m); });
-      cur.sort((a, b) => a.year - b.year);
-      try { localStorage.setItem('shichusuimei_memo_' + bd, JSON.stringify(cur)); } catch { /* 容量超過等 */ }
-    });
-    Object.entries(data.children || {}).forEach(([bd, arr]) => {
-      if (Array.isArray(arr) && !localStorage.getItem('shichusuimei_children_' + bd)) {
-        try { localStorage.setItem('shichusuimei_children_' + bd, JSON.stringify(arr)); } catch { /* 容量超過等 */ }
-      }
-    });
-  } finally {
-    applying = false;
-  }
-  window.dispatchEvent(new Event('shichuSynced'));
-  window.dispatchEvent(new Event('shichuSaved'));
 }
 
 // クラウド→ローカルへ取得（状況に応じて送信に切り替える）
@@ -182,17 +299,11 @@ export async function pullNow() {
     }
     const syncedAt = localStorage.getItem(SYNCED_KEY);
     const dirty = localStorage.getItem(DIRTY_KEY) === '1';
-    // 初回同期：端末とクラウドの両方にデータがある場合は統合してから送信する
-    if (!syncedAt && localPersons.length) {
-      mergeRemoteIntoLocal(JSON.parse(b64decode(remote.content)));
-      await pushNow();
-      return;
-    }
-    // 未送信の修正がある：送信を優先（後勝ち）
-    if (dirty) { await pushNow(); return; }
+    // 初回同期（端末にもデータあり）・未送信の修正あり：統合してから送信（pushNow内で統合）
+    if ((!syncedAt && localPersons.length) || dirty) { await pushNow(); return; }
     const data = JSON.parse(b64decode(remote.content));
-    if ((data.updatedAt || '') !== syncedAt) {
-      applyRemote(data);
+    if (remoteChanged(remote, data)) {
+      applyRemote(data, remote.sha);
       setStatus('ok', '最新を取り込みました');
     } else {
       setStatus('ok', '最新です');
@@ -219,6 +330,7 @@ export function initSync() {
   const origRemove = localStorage.removeItem.bind(localStorage);
   localStorage.setItem = (k, v) => { origSet(k, v); if (!applying && isSyncKey(k)) markDirty(); };
   localStorage.removeItem = (k) => { origRemove(k); if (!applying && isSyncKey(k)) markDirty(); };
+  migrateLegacyKeys(); // 旧形式（生年月日だけ）のメモ・家族を新キーへ
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') {
       // タブを閉じる・切り替える前に未送信分を送っておく
