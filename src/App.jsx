@@ -4914,16 +4914,16 @@ function App() {
 
             {/* ✦ 未来5年運勢セクション */}
             <Section title={`▌ 未来5年の運勢（${cy}〜${cy+4}年）`}>
-              <FutureFortuneSection result={result} globalApiKey={globalApiKey} setGlobalApiKey={setGlobalApiKey}/>
+              <FutureFortuneSection key={`${result.name}|${result.bd}|${result.bt}|${result.gender}`} result={result} globalApiKey={globalApiKey} setGlobalApiKey={setGlobalApiKey}/>
             </Section>
 
             {/* ✦ 年齢指定運勢セクション */}
             <Section title="▌ 年齢を指定して運勢を見る">
-              <AgeFortuneSection result={result} globalApiKey={globalApiKey} setGlobalApiKey={setGlobalApiKey}/>
+              <AgeFortuneSection key={`${result.name}|${result.bd}|${result.bt}|${result.gender}`} result={result} globalApiKey={globalApiKey} setGlobalApiKey={setGlobalApiKey}/>
             </Section>
 
             {/* ✦ AI総合鑑定文（🖨 印刷でそのままPDF後半ページに入る） */}
-            <AIKanteibunSection result={result} globalApiKey={globalApiKey} setGlobalApiKey={setGlobalApiKey}/>
+            <AIKanteibunSection key={`${result.name}|${result.bd}|${result.bt}|${result.gender}`} result={result} globalApiKey={globalApiKey} setGlobalApiKey={setGlobalApiKey}/>
 
             {/* 通変星・十二運 説明（チェックで展開） */}
             <TsuhenShinSatsuPanel result={result}/>
@@ -4944,7 +4944,7 @@ function App() {
             {/* ── 悩み相談タブ ── */}
             {activeTab==="soudan" && (
               <div style={{border:"1px solid #c4a070",borderTop:"none",borderRadius:"0 8px 8px 8px",background:"rgba(253,248,242,0.95)"}}>
-                <SoudanSection result={result} globalApiKey={globalApiKey} setGlobalApiKey={setGlobalApiKey}/>
+                <SoudanSection key={`${result.name}|${result.bd}|${result.bt}|${result.gender}`} result={result} globalApiKey={globalApiKey} setGlobalApiKey={setGlobalApiKey}/>
               </div>
             )}
 
